@@ -1,0 +1,20 @@
+{
+    "player_name": "Megaladon",
+    "first_time": false,
+    "language": "ru",
+    "has_learning": false,
+    "dies": 0,
+    "money": 0,
+    "bot_kills": 0,
+    "player_kills": 0,
+    "planes_play": 0,
+    "tanks_play": 0,
+    "ships_play": 0,
+    "get_damage": 0,
+    "gave_damage": 0,
+    "playing_time": 0,
+    "settings": {
+        "grafic": "normal"
+    },
+    "machines": ["LaGG3", "T26"]
+}
