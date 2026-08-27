@@ -465,7 +465,7 @@ class PlayerTank:
         if self.boost > 0:
             self.boost -= self.speed_for_second / 1.5
         elif self.boost < 0:
-            self.boost -= self.speed_for_second / 1.5
+            self.boost += self.speed_for_second / 1.5
         else:
             if self.speed > 0:
                 self.speed -= self.speed_for_second / 1.5
@@ -872,6 +872,7 @@ class Scenes:
     def select_map_window(self):
         self.App.Ui.hide_all()
         self.image.hideturtle()
+        hotkeys["esc"] = self.stop_select
         self.App.Screen.onkeypress(self.stop_select, "Escape")
         self.last_col = self.App.Screen.bgcolor()
         self.App.Screen.bgcolor(35, 35, 35)
@@ -924,6 +925,7 @@ class Scenes:
         self.App.Ui.show_all()
         self.App.Ui.Labels.change_value("selected_map", "text", f"выбранная карта:\n{self.selected_map}")
         self.App.Screen.onkeypress(self.exit_window, "Escape")
+        hotkeys["esc"] = self.exit_window
         self.image.showturtle()
         self.App.update()
 
@@ -972,13 +974,13 @@ class Scenes:
         self.App.Ui.Buttons.delete("exit", "not_exit")
         self.App.Ui.Labels.delete("advice")
         self.App.Ui.Frames.delete("blackout")
-        self.App.Screen.onkeypress(self.exit_window, "Escape")
+        hotkeys["esc"] = self.exit_window
         self.App.Ui.show_all()
         self.App.update()
 
     def exit_window(self):
         self.App.Ui.hide_all()
-        self.App.Screen.onkeypress(self.dont_exit, "Escape")
+        hotkeys["esc"] = self.dont_exit
         self.App.Ui.Frames.new("blackout", (35, 35, 35), [(-self.half_x, self.half_y), (self.half_x, self.half_y),
                                                            (self.half_x, -self.half_y), (-self.half_x, -self.half_y)])
         self.App.Ui.Labels.new("advice", (0, 50), "center", "Вы точно хотите выйти?", "white", ("Arial", 15, "normal"))
