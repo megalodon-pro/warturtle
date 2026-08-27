@@ -1,6 +1,14 @@
-import turtle, time, math, random, json, os, datetime
+import turtle
+import time
+import math
+import random
+import json 
+import os
+import datetime
 from PIL import Image, ImageTk
+from pynput import keyboard
 from screeninfo import get_monitors
+
 turtle.colormode(255)  
 
 class App:
@@ -26,18 +34,38 @@ class App:
         self.Screen.delay(0)
         self.Screen.title("War Turtle")  
         self.Screen.onscreenclick(self.click, 1)
-        self.Screen.onkeypress(self.Scenes.exit_window, "Escape")
+        hotkeys["esc"] = self.Scenes.exit_window
         self.renderer = turtle.Turtle()  
         self.renderer.penup()
         self.renderer.hideturtle()
         self.renderer.speed(0)
+        self.bullet_drawer = None
         self.game_settings = {}
         self.settings = {}
-        self.fps = 20
+        self.bullets = []
+        self.fps = 30
         self.language = "an"
         self.slow = 100
         self.shapes = []
-        self.version = "i_believe_not_last"
+        self.version = "i_hope_is_not_last" 
+
+    def on_press(self, key):
+        try:
+            key_name = key.char
+        except AttributeError:
+            key_name = key.name
+        if key_name in hotkeys:
+            if hotkeys[key_name]() is False:
+                return False
+
+    def on_release(self, key):
+        try:
+            key_name = key.char
+        except AttributeError:
+            key_name = key.name
+        if key_name in hotkeys_release:
+            if hotkeys_release[key_name]() is False:
+                return False
 
     def rotate_texture(self, path, angle, name):
         first = Image.open(path)
@@ -48,6 +76,11 @@ class App:
 
     def begin_game(self):
         if self.selected_map != "":
+            self.bullet_drawer = turtle.Turtle()
+            self.bullet_drawer.hideturtle()
+            self.bullet_drawer.penup()
+            self.bullet_drawer.color(253,207,88)
+            self.bullet_drawer.speed(0)
             self.Maps.load_map()
             cls = self.Machines.get(self.selected_machine).cls
             if cls == "Plane":
@@ -58,13 +91,46 @@ class App:
             self.run_game = True
             while self.run_game:
                 player.move()
+                self.move_bullet()
+                self.draw_bullet()
                 time.sleep(1 / self.fps)
                 self.update()
         else:
             self.Scenes.map_not_selected()
 
-    def new_bullet(self):
-        pass
+    def new_bullet(self, armor_projectile, speed, size, start_pos, angle, mass):
+        self.bullets.append({
+            "armor_projectile": armor_projectile,
+            "size": size,
+            "speed": speed,
+            "angle": angle,
+            "pos": start_pos,
+            "mass": mass
+        })
+
+    def draw_bullet(self):
+        for blt in self.bullets:
+            self.bullet_drawer.goto(blt["pos"])
+            x_pos = blt["pos"][0]
+            y_pos = blt["pos"][1]
+            half_a = blt["size"][0] / 2
+            half_b = blt["size"][0] / 2
+            cos = math.cos(math.radians(blt["angle"]))
+            sin = math.sin(math.radians(blt["angle"]))
+            self.bullet_drawer.pendown()
+            self.bullet_drawer.begin_fill()
+            self.bullet_drawer.goto(x_pos + (-half_a * cos + half_b * sin), y_pos + (-half_a * sin - half_b * cos))
+            self.bullet_drawer.goto(x_pos + (half_a * cos + half_b * sin), y_pos + (half_a * sin - half_b * cos))
+            self.bullet_drawer.goto(x_pos + (half_a * cos + -half_b * sin), y_pos + (half_a * sin + half_b * cos))
+            self.bullet_drawer.goto(x_pos + (-half_a * cos + -half_b * sin), y_pos + (-half_a * sin + half_b * cos))
+            self.bullet_drawer.end_fill()
+            self.bullet_drawer.penup()
+
+    def move_bullet(self):
+        for blt in self.bullets:
+            blt["pos"][0] = blt["pos"][0] + blt["speed"] * math.sin(math.radians(blt["angle"])) / self.slow
+            blt["pos"][1] = blt["pos"][1] + blt["speed"] * math.cos(math.radians(blt["angle"])) / self.slow
+            blt["speed"] = blt["speed"] - 1 - blt["mass"]
 
     def check_colision(self):
         pass
@@ -204,7 +270,8 @@ class PlayerPlane:
             "shell_for_second": self.data.weapons[0]["shell_for_second"],
             "time_to_shoot": 0,
             "armor_projectile": self.data.weapons[0]["armor_projectile"],
-            "offset": self.data.weapons[0]["offset"]
+            "offset": self.data.weapons[0]["offset"],
+            "shell_mass": self.data.weapons[0]["bullet_mass"]
         }
         self.extra_weapon = None if len(self.data.weapons) == 1 else {
             "capacity": self.data.weapons[1]["capacity"],
@@ -212,7 +279,8 @@ class PlayerPlane:
             "shell_for_second": self.data.weapons[1]["shell_for_second"],
             "time_to_shoot": 0,
             "armor_projectile": self.data.weapons[1]["armor_projectile"],
-            "offset": self.data.weapons[1]["offset"]
+            "offset": self.data.weapons[1]["offset"],
+            "shell_mass": self.data.weapons[0]["bullet_mass"]
         }
         self.name = self.data.name
         self.rotate_for_second = self.data.rotate_for_second
@@ -235,14 +303,14 @@ class PlayerPlane:
         self.y = y
 
     def link_keys(self):
-        self.App.Screen.onkeypress(self.up_speed, "w")
-        self.App.Screen.onkeyrelease(self.stop, "w")
-        self.App.Screen.onkeypress(self.slow_down, "s")
-        self.App.Screen.onkeyrelease(self.stop, "s")
-        self.App.Screen.onkeypress(self.right, "a")
-        self.App.Screen.onkeyrelease(self.stop_rotate, "a")
-        self.App.Screen.onkeypress(self.left, "d")
-        self.App.Screen.onkeyrelease(self.stop_rotate, "d")
+        hotkeys["w"] = self.up_speed
+        hotkeys_release["w"] = self.stop
+        hotkeys["s"] = self.slow_down
+        hotkeys_release["s"] = self.stop
+        hotkeys["a"] = self.right
+        hotkeys_release["a"] = self.stop_rotate
+        hotkeys["d"] = self.left
+        hotkeys_release["d"] = self.stop_rotate
         self.App.Screen.onscreenclick(self.shoot, 1)
 
     def up_speed(self):
@@ -302,10 +370,8 @@ class PlayerPlane:
             self.App.rotate_texture(self.image_path, round(self.angle), self.name)
             self.App.shapes.append(self.name + "_" + str(round(self.angle)))
         self.img.shape(self.name + "_" + str(round(self.angle)))
-        #print(f"{self.speed} км в ч")
-        #print(f"{self.boost} ускорение")
 
-    def unlink_keys(self):
+    """def unlink_keys(self):
         self.App.Screen.onkeypress(None, "w")
         self.App.Screen.onkeyrelease(None, "w")
         self.App.Screen.onkeypress(None, "s")
@@ -313,7 +379,7 @@ class PlayerPlane:
         self.App.Screen.onkeypress(None, "d")
         self.App.Screen.onkeyrelease(None, "d")
         self.App.Screen.onkeypress(None, "a")
-        self.App.Screen.onkeyrelease(None, "a")
+        self.App.Screen.onkeyrelease(None, "a")"""
 
 class PlayerTank:
     def __init__(self, App, machine_obj):
@@ -374,14 +440,14 @@ class PlayerTank:
         self.y = y
 
     def link_keys(self):
-        self.App.Screen.onkeypress(self.up_speed, "w")
-        self.App.Screen.onkeyrelease(self.stop, "w")
-        self.App.Screen.onkeypress(self.slow_down, "s")
-        self.App.Screen.onkeyrelease(self.stop, "s")
-        self.App.Screen.onkeypress(self.right, "a")
-        self.App.Screen.onkeyrelease(self.stop_rotate, "a")
-        self.App.Screen.onkeypress(self.left, "d")
-        self.App.Screen.onkeyrelease(self.stop_rotate, "d")
+        hotkeys["w"] = self.up_speed
+        hotkeys_release["w"] = self.stop
+        hotkeys["s"] = self.slow_down
+        hotkeys_release["s"] = self.stop
+        hotkeys["a"] = self.right
+        hotkeys_release["a"] = self.stop_rotate
+        hotkeys["d"] = self.left
+        hotkeys_release["d"] = self.stop_rotate
         self.App.Screen.onscreenclick(self.shoot, 1)
         canvas = self.App.Screen.getcanvas()
         canvas.bind("<Motion>", self.get_tower_targer)
@@ -397,14 +463,14 @@ class PlayerTank:
 
     def air_resistance(self):
         if self.boost > 0:
-            self.boost -= self.speed_for_second / 2.5
+            self.boost -= self.speed_for_second / 1.5
         elif self.boost < 0:
-            self.boost += self.speed_for_second / 2.5
+            self.boost -= self.speed_for_second / 1.5
         else:
             if self.speed > 0:
-                self.speed -= self.speed_for_second / 2.5
+                self.speed -= self.speed_for_second / 1.5
             elif self.speed < 0:
-                self.speed += self.speed_for_second / 2.5
+                self.speed += self.speed_for_second / 1.5
 
     def get_tower_targer(self, event):
         turtle_x = event.x - self.App.Maps.registry[self.App.selected_map].size[0] / 2
@@ -423,7 +489,7 @@ class PlayerTank:
             self.angle_tower += self.tower_rotate_speed / self.App.fps
         else: 
             self.angle_tower -= self.tower_rotate_speed / self.App.fps
-
+   
     def do_slow_down(self):
         if self.speed <= self.max_back_speed:
             self.boost = 0
@@ -473,7 +539,7 @@ class PlayerTank:
         #print(f"{self.speed} км в ч")
         #print(f"{self.boost} ускорение")
 
-    def unlink_keys(self):
+    """def unlink_keys(self):
         self.App.Screen.onkeypress(None, "w")
         self.App.Screen.onkeyrelease(None, "w")
         self.App.Screen.onkeypress(None, "s")
@@ -481,7 +547,7 @@ class PlayerTank:
         self.App.Screen.onkeypress(None, "d")
         self.App.Screen.onkeyrelease(None, "d")
         self.App.Screen.onkeypress(None, "a")
-        self.App.Screen.onkeyrelease(None, "a")
+        self.App.Screen.onkeyrelease(None, "a")"""
    
 class Labels:
     def __init__(self, Ui):
@@ -733,7 +799,8 @@ class LaGG3(Planes):
             "shell_for_second": 13,
             "armor_projectile": 12, #пробиваемость мм
             "recharge": 10,
-            "offset": [[0, 0]] # смещение по X, Y
+            "offset": [[0, 0]], # смещение по X, Y
+            "bullet_mass": 0.2
         },
         {
             "name": "Пулемёт ШВАК",
@@ -741,7 +808,8 @@ class LaGG3(Planes):
             "shell_for_second": 13,
             "armor_projectile": 8,
             "recharge": 5,
-            "offset": [[0, 0], [0, 0]]
+            "offset": [[0, 0], [0, 0]],
+            "bullet_mass": 0.2
         }]
         
 class Tanks:
@@ -764,7 +832,7 @@ class T26(Tanks):
         tower_shape = "assets/images/t26tower.png"
         tower_rotate_speed = 46
         tower_x_offset = -1.6
-        tower_y_offset = -0.2
+        tower_y_offset = -0.1
         type = "Лёгкий танк"
         max_speed = 32
         max_back_speed = -3
@@ -778,7 +846,8 @@ class T26(Tanks):
             "shell_for_second": 0.2,
             "armor_projectile": 45,
             "recharge": 6,
-            "offset": [[3, 3]]
+            "offset": [[3, 3]],
+            "bullet_mass": 1.3
         }]
 
 class Ships:
@@ -1069,8 +1138,12 @@ class SteppePath(Maps):
     obstacle = {}
 
 version = "0.1 alpha"
+hotkeys = {} 
+hotkeys_release = {}
+listener = None
 
 def run():
+    global listener
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     Game = App()
     with open("assets/player_data.json", "r", encoding="utf-8") as f:
@@ -1080,6 +1153,8 @@ def run():
         data["first_time"] = False
         with open("assets/player_data.json", "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
+    listener = keyboard.Listener(on_press=Game.on_press, on_release=Game.on_release)
+    listener.start() 
     Game.Machines.player_machines = data["machines"]
     Game.settings = data["settings"]
     Game.language = data["language"]
@@ -1096,3 +1171,6 @@ if __name__ == "__main__":
         with open("assets/exception_log.txt", "r", encoding="utf-8") as file:
             last = file.read()
             file.write(last + f"[ERROR] VERSION {version} TIME {datetime.datetime.now()}: {e}" + "\n")
+            listener.join()
+
+listener.join()
