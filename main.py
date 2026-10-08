@@ -157,7 +157,7 @@ class App:
             return               
         nearest = min(distances)
         index = distances.index(nearest)
-        if nearest < self.Ui.buttons[index]["size"] / 2:
+        if nearest < self.Ui.Buttons.buttons[index]["size"] / 2:
             if self.Ui.Buttons.buttons[index]["arg"][0] == False:
                 self.Ui.Buttons.buttons[index]["action"]()
             else:
