@@ -1169,6 +1169,7 @@ if __name__ == "__main__":
     try:
         run()
     except Exception as e:
+        print(e)
         print("Произошла ошибка! Лог ошибки последней игры находиться в файле exception_log.txt")
         with open("assets/exception_log.txt", "r", encoding="utf-8") as file:
             last = file.read()
