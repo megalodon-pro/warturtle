@@ -87,7 +87,6 @@ class App:
                 player = PlayerPlane(self, self.selected_machine)
             else:
                 player = PlayerTank(self, self.selected_machine)
-            player.goto(-self.Maps.registry[self.selected_map].size[0] // 2, 0)
             self.run_game = True
             while self.run_game:
                 player.move()
@@ -386,7 +385,7 @@ class PlayerTank:
         self.App = App
         self.data = self.App.Machines.get(machine_obj)
         self.health = self.data.health
-        self.angle = 270
+        self.angle = 0
         self.y = 0
         self.forward = False
         self.back = False
@@ -399,8 +398,7 @@ class PlayerTank:
         self.speed_for_second = self.data.speed_for_second
         self.max_speed = self.data.max_speed
         self.cls = self.data.cls
-        self.targer_tower = 270
-        self.angle_tower = 270
+        self.angle_tower = 0
         self.tower_rotate_speed = 0
         self.max_back_speed = self.data.max_back_speed
         self.image_path = self.data.null_shape
@@ -450,7 +448,7 @@ class PlayerTank:
         hotkeys_release["d"] = self.stop_rotate
         self.App.Screen.onscreenclick(self.shoot, 1)
         canvas = self.App.Screen.getcanvas()
-        canvas.bind("<Motion>", self.get_tower_targer)
+        canvas.bind("<Motion>", self.get_and_rotate)
 
     def up_speed(self):
         self.forward = True
@@ -472,23 +470,34 @@ class PlayerTank:
             elif self.speed < 0:
                 self.speed += self.speed_for_second / 1.5
 
-    def get_tower_targer(self, event):
-        turtle_x = event.x - self.App.Maps.registry[self.App.selected_map].size[0] / 2
-        turtle_y = self.App.Maps.registry[self.App.selected_map].size[1] / 2 / 2 - event.y 
-        dy = turtle_y - self.y + self.data.tower_y_offset
-        dx = turtle_x - self.x + self.data.tower_x_offset
-        self.targer_tower = math.degrees(math.atan2(dy, dx))
+    def get_and_rotate(self, event):
+        rad = math.radians(self.angle)
+        world_ofs_x = self.x_tower_ofs * math.cos(rad) - self.y_tower_ofs * math.sin(rad)
+        world_ofs_y = self.x_tower_ofs * math.sin(rad) + self.y_tower_ofs * math.cos(rad)
+        tower_world_x = self.x + world_ofs_x
+        tower_world_y = self.y + world_ofs_y
+        dx = event.x - (tower_world_x + self.App.maxsize[0] / 2)
+        dy = (self.App.maxsize[1] / 2 - event.y) - tower_world_y
+        self.move_tower(math.degrees(math.atan2(dx, dy)))
 
-    def move_tower(self):
-        diff = self.targer_tower - self.angle_tower
-        delta = (diff + 180) % 360 - 180
-        if abs(delta) <= self.tower_rotate_speed / self.App.fps:
-            self.angle_tower = self.targer_tower
+    def normalize_angle(self, angle):
+        if angle > 180.0:
+            angle -= 360.0
+        elif angle < -180.0:
+            angle += 360.0
+        return angle
+    
+    def move_tower(self, target):
+        diff = self.normalize_angle(target - self.angle_tower)
+
+        if abs(diff) <= self.tower_rotate_speed:
+            self.angle_tower = target
             return
-        if delta > self.tower_rotate_speed / self.App.fps:
-            self.angle_tower += self.tower_rotate_speed / self.App.fps
-        else: 
-            self.angle_tower -= self.tower_rotate_speed / self.App.fps
+
+        if diff > 0:
+            self.angle_tower = self.angle_tower + self.tower_rotate_speed
+        else:
+            self.angle_tower = self.angle_tower - self.tower_rotate_speed
    
     def do_slow_down(self):
         if self.speed <= self.max_back_speed:
@@ -527,17 +536,14 @@ class PlayerTank:
             self.App.rotate_texture(self.image_path, round(self.angle), self.name)
             self.App.shapes.append(self.name + "_" + str(round(self.angle)))
         self.img.shape(self.name + "_" + str(round(self.angle)))
-        self.move_tower()
         rad = math.radians(self.angle)
         world_ofs_x = self.x_tower_ofs * math.cos(rad) - self.y_tower_ofs * math.sin(rad)
         world_ofs_y = self.x_tower_ofs * math.sin(rad) + self.y_tower_ofs * math.cos(rad)
         self.img_tower.goto(self.x + world_ofs_x, self.y + world_ofs_y)
-        if not self.name + "_tower_" + str(round(self.angle + self.angle_tower)) in self.App.shapes:
-            self.App.rotate_texture(self.image_path_tower, round(self.angle + self.angle_tower), self.name + "_tower")
-            self.App.shapes.append(self.name + "_tower_" + str(round(self.angle + self.angle_tower)))
-        self.img_tower.shape(self.name + "_tower_" + str(round(self.angle + self.angle_tower)))
-        #print(f"{self.speed} км в ч")
-        #print(f"{self.boost} ускорение")
+        if not self.name + "_tower_" + str(round(-self.angle_tower)) in self.App.shapes:
+            self.App.rotate_texture(self.image_path_tower, round(-self.angle_tower), self.name + "_tower")
+            self.App.shapes.append(self.name + "_tower_" + str(round(-self.angle_tower)))
+        self.img_tower.shape(self.name + "_tower_" + str(round(-self.angle_tower)))
 
     """def unlink_keys(self):
         self.App.Screen.onkeypress(None, "w")
