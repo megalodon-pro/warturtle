@@ -18,7 +18,6 @@ if errorlevel 1 (
     echo [ОШИБКА] Python не найден!
     echo.
     echo Установите Python с: https://www.python.org/downloads/
-    echo Не забудьте отметить "Add Python to PATH"
     echo.
     pause
     exit /b 1
