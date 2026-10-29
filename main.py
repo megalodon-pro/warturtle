@@ -896,6 +896,7 @@ class Scenes:
         self.y = self.App.maxsize[1]
         self.half_x = self.x / 2
         self.half_y = self.y / 2
+        self.creating_bot_data = []
 
     def select_map_window(self):
         self.App.Ui.hide_all()
@@ -1043,26 +1044,30 @@ class Scenes:
 
     def bot_menu(self):
         self.App.Ui.hide_all()
+        hotkeys["esc"] = self.close_bot_menu
         self.App.Ui.Frames.new("blackout", (35, 35, 35), [(-self.half_x, self.half_y), (self.half_x, self.half_y),
                                                            (self.half_x, -self.half_y), (-self.half_x, -self.half_y)], group="bot_menu")
         self.App.Ui.Labels.new("allied_bots", [-self.half_x + 40, self.half_y - 100], "left", "союзные боты: ", (0, 192, 255), ("Arial", 40, "bold"), "bot_menu")
         self.App.Ui.Labels.new("enemy_bots", [-self.half_x + 40, 0], "left", "вражеские боты: ", (218, 40, 18), ("Arial", 40, "bold"), "bot_menu")
         self.App.Ui.Buttons.new("close_bot_menu", "rectangle", [self.half_x / 10, self.half_x / 10], (self.half_x - 100, self.half_y - 100), self.close_bot_menu, "black", 3, "red", "X", ("Arial", 25, "bold"), "red", group = "bot_menu")
+        self.load_allies_bots()
+        self.load_enemy_bots()
         self.App.update()
 
     def load_allies_bots(self):
-        lenght = self.half_x * 2 - 80
+        self.App.Ui.delete_group("allied_bots")
+        lenght = self.half_x * 2 - 200
         height = lenght // 10
         otstup = lenght / 10 / 4
         size = height - otstup
-        y = self.half_y - 100 - 50
+        y = self.half_y - 200
         last_x = 0
 
-        if len(self.App.Bots.allies_bots) == 0:
+        if len(self.App.Bots.allied_bots) == 0:
             pass
         else:
-            for i, bot in enumerate(self.App.Bots.allies_bots):
-                x = -self.half_x + 40 + size * i + otstup * (i + 1)
+            for i, bot in enumerate(self.App.Bots.allied_bots):
+                x = -self.half_x + 100 + size * i + otstup * (i + 1)
                 self.App.Ui.Buttons.new(f"allied_bot{i}", "rectangle", [size, size], (x, y), self.interact, "black", 2, "red", bot["machine"], ("Arial", 13, "normal"), "red", action_arg = [i, "allied"], group = "allied_bots")
                 color = None
                 text = ""
@@ -1075,31 +1080,27 @@ class Scenes:
                 else:
                     color = (200, 0, 0)
                     text = "Сильный"
-                    self.App.Ui.Labels.new(f"allied_bot{i}_label", [x, y - 10], "center", text, color, ("Arial", 10, "bold"), "allied_bots")
+                    self.App.Ui.Labels.new(f"allied_bot{i}_label", [x, y - 20], "center", text, color, ("Arial", 10, "bold"), "allied_bots")
                 last_x = x
-            if len(self.App.Bots.allies_bots) != 10:
-                x = last_x + size + otstup if len(self.App.Bots.allies_bots) > 1 else -self.half_x + 40
-                self.App.Ui.Buttons.new(f"add_allied_bot", "rectangle", [size, size], (last_x + size + otstup, y), self.add_bot, "black", 2, "red", "+", ("Arial", 30, "normal"), "red", group = "allied_bots")
-
-    def add_bot(self):
-        pass
-
-    def interact(self, index, team):
-        pass    
+        if len(self.App.Bots.allied_bots) != 10:
+            x = last_x + size + otstup if len(self.App.Bots.allied_bots) > 1 else -self.half_x + 100 
+            self.App.Ui.Buttons.new(f"add_allied_bot", "rectangle", [size, size], (x, y), self.add_bot, "black", 2, "red", "+", ("Arial", 30, "normal"), "red", action_arg = ["allied"], group = "allied_bots")
+        self.App.update()
 
     def load_enemy_bots(self):
-        lenght = self.half_x * 2 - 80
+        self.App.Ui.delete_group("enemy_bots")
+        lenght = self.half_x * 2 - 200
         height = lenght // 10
         otstup = lenght / 10 / 4
         size = height - otstup
-        y = self.half_y - 150 - self.half_y
+        y = self.half_y - 100 - self.half_y
         last_x = 0
 
-        if len(self.App.Bots.allies_bots) == 0:
+        if len(self.App.Bots.enemy_bots) == 0:
             pass
         else:
-            for i, bot in enumerate(self.App.Bots.allies_bots):
-                x = -self.half_x + 40 + size * i + otstup * (i + 1)
+            for i, bot in enumerate(self.App.Bots.enemy_bots):
+                x = -self.half_x + 100 + size * i + otstup * (i + 1)
                 self.App.Ui.Buttons.new(f"enemy_bot{i}", "rectangle", [size, size], (x, y), self.interact, "black", 2, "red", bot["machine"], ("Arial", 13, "normal"), "red", action_arg = [i, "enemy"], group = "enemy_bots")
                 color = None
                 text = ""
@@ -1112,13 +1113,60 @@ class Scenes:
                 else:
                     color = (200, 0, 0)
                     text = "Сильный"
-                    self.App.Ui.Labels.new(f"enemy_bot{i}_label", [x, y - 10], "center", text, color, ("Arial", 10, "bold"), "enemy_bots")
+                    self.App.Ui.Labels.new(f"enemy_bot{i}_label", [x, y - 20], "center", text, color, ("Arial", 10, "bold"), "enemy_bots")
                 last_x = x
-            if len(self.App.Bots.allies_bots) != 10:
-                x = last_x + size + otstup if len(self.App.Bots.allies_bots) > 1 else -self.half_x + 40
-                self.App.Ui.Buttons.new(f"add_enemy_bot", "rectangle", [size, size], (x, y), self.add_bot, "black", 2, "red", "+", ("Arial", 30, "normal"), "red", group = "enemy_bots")
+        if len(self.App.Bots.enemy_bots) != 10:
+            x = last_x + size + otstup if len(self.App.Bots.enemy_bots) > 1 else -self.half_x + 100
+            self.App.Ui.Buttons.new(f"add_enemy_bot", "rectangle", [size, size], (x, y), self.add_bot, "black", 2, "red", "+", ("Arial", 30, "normal"), "red", action_arg = ["enemy"], group = "enemy_bots")
+        self.App.update()
+
+    def add_bot(self, arg):
+        team = arg[0]
+        self.App.Ui.hide_group("bot_menu")
+        self.App.Ui.hide_group("allied_bots")
+        self.App.Ui.hide_group("enemy_bots")
+        self.App.Frames.change_value("blackout", "visible", True)
+        self.App.Ui.Labels.new("choose_label", [-self.half_x + 100, self.half_y - 50], "center", "Выберите технику:", (218, 40, 18), ("Arial", 20, "bold"), "creation_menu")
+        
+        lenght = self.half_x * 2 - 200
+        height = lenght // 10
+        otstup = lenght / 10 / 4
+        size = height - otstup
+        y = self.half_y - 50 - size * 2
+        last_x = 0
+        for i, machine in enumerate(self.App.Machines.player_machines):
+            if i == 10:
+                break
+            x = -self.half_x + 100 + size * i + otstup * (i + 1)
+            self.App.Ui.Buttons.new(f"", "rectangle", [size, size], (x, y), self.select_machine_for_bot, "black", 2, "red", machine, ("Arial", 13, "normal"), "red", action_arg = [machine], group = "creating_bot")
+            last_x = x
+        if len(self.App.Machines.player_machines) > 9:
+            self.App.Ui.Buttons.new(f"more", "rectangle", [size, size], (last_x + size + otstup, y), self.add_bot, "black", 2, "red", "+", ("Arial", 30, "normal"), "red", group = "creating_bot")
+
+        self.App.Ui.Labels.new("now_machine", [0 , y - 100], "center", "Выбранная техника: - ", (218, 40, 18), ("Arial", 20, "bold"), "creation_menu")
+
+
+        self.App.update()
+
+    def save_and_add(self):
+        pass
+
+    def cancel(self):
+        pass
+
+    def interact(self, arg):
+        pass
+
+    def select_machine_for_bot(self, arg):
+        self.creating_bot_data["machine"] = arg[0]
+        self.App.Ui.Label.change_value("now_machine", "text", f"Выбранная техника: {arg[0]}")
+        self.App.update()
+
+    def more_machine_for_bot(self):
+        pass
 
     def close_bot_menu(self):
+        hotkeys["esc"] = self.exit_window
         self.App.Ui.delete_group("bot_menu")
         self.App.Ui.delete_group("allied_bots")
         self.App.Ui.delete_group("enemy_bots")
