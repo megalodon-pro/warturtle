@@ -1,6 +1,5 @@
 import turtle
 import time
-import io
 import math
 import random
 import json 
@@ -913,11 +912,11 @@ class Scenes:
         self.img_visible_value = [self.image.isvisible(), self.bot_machine_img.isvisible()]
         self.image.hideturtle()
         self.bot_machine_img.hideturtle()
-        self.App.Ui.Frames.new("blackoutt", (35, 35, 35), [(-self.half_x / 3, self.half_y / 3), (self.half_x / 3, self.half_y / 3),
-                                                           (self.half_x / 3, -self.half_y / 3), (-self.half_x / 3, -self.half_y / 3)])
+        self.App.Ui.Frames.new("blackoutt", (20, 20, 20), [(-self.half_x / 3, self.half_y / 3), (self.half_x / 3, self.half_y / 3),
+                                                           (self.half_x / 3, -self.half_y / 2.5), (-self.half_x / 3, -self.half_y / 2.5)], group="leave_game")
         self.App.Ui.Labels.new("advicee", (0, 50), "center", "Покинуть бой?", "white", ("Arial", 15, "normal"), group="leave_game")
         self.App.Ui.Buttons.new("leave_gamee", "rectangle", [150, 50], (0, -40), self.leave_game, "black", 3, "red", "Покинуть", ("Arial", 20, "normal"), "red", group="leave_game")
-        self.App.Ui.Buttons.new("not_leave_gamee", "rectangle", [250, 50], (0, -110), self.not_leave_game, "black", 3, "red", "Продолжить", ("Arial", 20, "normal"), "red", group="leave_game")
+        self.App.Ui.Buttons.new("not_leave_gamee", "rectangle", [150, 50], (0, -110), self.not_leave_game, "black", 3, "red", "Продолжить", ("Arial", 20, "normal"), "red", group="leave_game")
         self.App.update()
 
     def not_leave_game(self):
@@ -927,6 +926,8 @@ class Scenes:
 
     def leave_game(self):
         self.App.Ui.delete_group("leave_game")
+        self.App.player.hideturtle()
+        self.App.player = None
         self.play_menu()
         self.App.run_game = False
         self.App.update()
@@ -985,7 +986,6 @@ class Scenes:
         self.App.Ui.delete_group("select_map")
         self.App.Ui.show_all()
         self.App.Ui.Labels.change_value("selected_map", "text", f"выбранная карта:\n{self.selected_map}")
-        self.App.Screen.onkeypress(self.exit_window, "Escape")
         hotkeys["esc"] = self.exit_window
         self.image.showturtle()
         self.App.update()
@@ -1185,7 +1185,7 @@ class Scenes:
             last_x = x
         if len(self.App.Machines.player_machines) > 9:
             self.App.Ui.Buttons.new(f"more", "rectangle", [size, size], (last_x + size + otstup, y), self.add_bot, "black", 2, "red", "+", ("Arial", 30, "normal"), "red", group = "creation_menu")
-        self.App.Ui.Frames.new("machineee", (25, 25, 25), [(-self.half_x + 100 - otstup, y + height / 2), (-self.half_x + 100 - otstup, y - height / 2), 
+        self.App.Ui.Frames.new("machineee  ", (25, 25, 25), [(-self.half_x + 100 - otstup, y + height / 2), (-self.half_x + 100 - otstup, y - height / 2), 
                                                         (-self.half_x + 100 + size * 10 + otstup * (10 + 1) + otstup, y - height / 2), (-self.half_x + 100 + size * 10 + otstup * (10 + 1) + otstup, y + height / 2)], group="creation_menu")
         self.App.Ui.Labels.new("now_machine", [0 , y - 100], "center", "Выбранная техника: -   ", (218, 40, 18), ("Arial", 20, "bold"), "creation_menu")
         self.App.Ui.Frames.new("no_machine_img", (35, 35, 35), [(self.half_x - 150 - half_size , half_size), (self.half_x - 150 + half_size, half_size), 

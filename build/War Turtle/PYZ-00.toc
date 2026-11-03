@@ -1,5 +1,5 @@
-('C:\\Users\\user\\Desktop\\Programming\\python_lesson\\War '
- 'Turtle\\build\\main\\PYZ-00.pyz',
+('C:\\Users\\user\\Desktop\\Programming\\python_lesson\\War Turtle\\build\\War '
+ 'Turtle\\PYZ-00.pyz',
  [('PIL',
    'C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python313\\Lib\\site-packages\\PIL\\__init__.py',
    'PYMODULE'),
