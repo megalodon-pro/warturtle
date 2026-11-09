@@ -35,7 +35,7 @@ class App:
         self.Screen.delay(0)
         self.Screen.title("War Turtle")  
         self.Screen.onscreenclick(self.click, 1)
-        hotkeys["esc"] = self.Scenes.exit_window
+        self.Screen.onkeypress(self.Scenes.exit_window, "Escape")
         self.renderer = turtle.Turtle()  
         self.renderer.penup()
         self.renderer.hideturtle()
@@ -51,30 +51,19 @@ class App:
         self.player = None
         self.version = "-" 
 
-    def on_press(self, key):
-        try:
-            key_name = key.char
-        except AttributeError:
-            key_name = key.name
-        if key_name in hotkeys:
-            if hotkeys[key_name]() is False:
-                return False
-
-    def on_release(self, key):
-        try:
-            key_name = key.char
-        except AttributeError:
-            key_name = key.name
-        if key_name in hotkeys_release:
-            if hotkeys_release[key_name]() is False:
-                return False
-
     def rotate_texture(self, path, angle, name):
+        #first = Image.open(path)
+        #first = first.resize((52, 52), Image.Resampling.LANCZOS)                 
+        #rotated = first.rotate(angle, expand=True, fillcolor=(0, 0, 0, 0)) Python 3.13.7
+        #photo = ImageTk.PhotoImage(rotated.convert("RGBA")) 
+        #self.Screen.addshape(f"{name}_{angle}", turtle.Shape("image", photo))
         first = Image.open(path)
-        first = first.resize((52, 52), Image.Resampling.LANCZOS)                 
-        rotated = first.rotate(angle, expand=True, fillcolor=(0, 0, 0, 0)) 
-        photo = ImageTk.PhotoImage(rotated.convert("RGBA")) 
-        self.Screen.addshape(f"{name}_{angle}", turtle.Shape("image", photo))
+        first = first.resize((52, 52), Image.Resampling.LANCZOS)
+        rotated = first.rotate(angle, expand=True, fillcolor=(0, 0, 0, 0))
+        tmp_path = f"{name}_{angle}.png"
+        rotated.convert("RGBA").save(tmp_path, "PNG")
+        self.Screen.register_shape(tmp_path)
+        os.remove(tmp_path)
 
     def begin_game(self):
         if self.selected_map != "":
@@ -89,7 +78,7 @@ class App:
                 self.player = PlayerPlane(self, self.selected_machine)
             else:
                 self.player = PlayerTank(self, self.selected_machine)
-            hotkeys["esc"] = self.Scenes.leave_game_window
+            self.Screen.onkeypress(self.Scenes.leave_game_window, "Escape")
             self.run_game = True
             while self.run_game:
                 self.player.move()
@@ -99,9 +88,6 @@ class App:
                 self.update()
         else:
             self.Scenes.map_not_selected() 
-
-    def end_game(self):
-        pass
 
     def new_bullet(self, armor_projectile, speed, size, start_pos, angle, mass):
         self.bullets.append({
@@ -257,9 +243,9 @@ class Ui:
         self.Frames.frames = []
 
 class PlayerPlane:
-    def __init__(self, App, machine):
+    def __init__(self, App, machine_name):
         self.App = App
-        self.data = self.App.Machines.get(machine)
+        self.data = self.App.Machines.get(machine_name)
         self.health = self.data.hp
         self.angle = 270
         self.y = 0
@@ -289,15 +275,15 @@ class PlayerPlane:
             "shell_mass": self.data.weapons[1]["bullet_mass"],
             "damage": self.data.weapons[1]["damage"]
         }
-        self.name = self.data.name
+        self.name = machine_name
         self.rotate_for_second = self.data.rotate_for_second
         self.speed_for_second = self.data.speed_for_second
         self.max_speed = self.data.max_speed
         self.cls = self.data.cls
         self.image_path = self.data.shape
-        self.bot_machine_img = turtle.Turtle()
-        self.bot_machine_img.penup()
-        self.bot_machine_img.speed(0)
+        self.base_img = turtle.Turtle()
+        self.base_img.penup()
+        self.base_img.speed(0)
         self.speed = 300
         self.link_keys()
 
@@ -305,19 +291,19 @@ class PlayerPlane:
         pass
 
     def goto(self, x, y):
-        self.bot_machine_img.goto(x, y)
+        self.base_img.goto(x, y)
         self.x = x
         self.y = y
 
     def link_keys(self):
-        hotkeys["w"] = self.up_speed
-        hotkeys_release["w"] = self.stop
-        hotkeys["s"] = self.slow_down
-        hotkeys_release["s"] = self.stop
-        hotkeys["a"] = self.right
-        hotkeys_release["a"] = self.stop_rotate
-        hotkeys["d"] = self.left
-        hotkeys_release["d"] = self.stop_rotate
+        self.App.Screen.onkeypress(self.up_speed, "w")
+        self.App.Screen.onkeyrelease(self.stop, "w")
+        self.App.Screen.onkeypress(self.slow_down, "s" )
+        self.App.Screen.onkeyrelease(self.stop, "s")
+        self.App.Screen.onkeypress(self.right, "a")
+        self.App.Screen.onkeyrelease(self.stop_rotate, "a")
+        self.App.Screen.onkeypress(self.left, "d")
+        self.App.Screen.onkeyrelease(self.stop_rotate ,"d")
         self.App.Screen.onscreenclick(self.shoot, 1)
 
     def up_speed(self):
@@ -372,11 +358,11 @@ class PlayerPlane:
         self.air_resistance()
         self.x -= self.speed / self.App.slow * math.sin(math.radians(self.angle))
         self.y += self.speed / self.App.slow * math.cos(math.radians(self.angle))
-        self.bot_machine_img.goto(self.x, self.y)
-        if not self.name + "_" + str(round(self.angle)) in self.App.shapes:
+        self.base_img.goto(self.x, self.y)
+        if not self.name + "_" + str(round(self.angle)) + ".png" in self.App.shapes:
             self.App.rotate_texture(self.image_path, round(self.angle), self.name)
-            self.App.shapes.append(self.name + "_" + str(round(self.angle)))
-        self.bot_machine_img.shape(self.name + "_" + str(round(self.angle)))
+            self.App.shapes.append(self.name + "_" + str(round(self.angle)) + ".png")
+        self.base_img.shape(self.name + "_" + str(round(self.angle)) + ".png")
 
     """def unlink_keys(self):
         self.App.Screen.onkeypress(None, "w")
@@ -390,9 +376,9 @@ class PlayerPlane:
 
 class PlayerTank:
 
-    def __init__(self, App, machine_obj):
+    def __init__(self, App, machine_name):
         self.App = App
-        self.data = self.App.Machines.get(machine_obj)
+        self.data = self.App.Machines.get(machine_name)
         self.health = self.data.hp
         self.angle = 0
         self.y = 0
@@ -402,7 +388,7 @@ class PlayerTank:
         self.angle_speed = 0
         self.boost = 0 
         self.speed = 0
-        self.name = self.data.name
+        self.name = machine_name
         self.rotate_for_second = self.data.rotate_for_second
         self.speed_for_second = self.data.speed_for_second
         self.max_speed = self.data.max_speed
@@ -420,9 +406,9 @@ class PlayerTank:
             "offset": self.data.weapons[0]["offset"],
             "damage": self.data.weapons[0]["damage"]
         }
-        self.bot_machine_img = turtle.Turtle()
-        self.bot_machine_img.penup()
-        self.bot_machine_img.speed(0)
+        self.base_img = turtle.Turtle()
+        self.base_img.penup()
+        self.base_img.speed(0)
         self.img_tower = turtle.Turtle()
         self.img_tower.penup()
         self.img_tower.speed(0)
@@ -436,19 +422,19 @@ class PlayerTank:
 
     def goto(self, x, y):
         self.img_tower.goto(x + self.x_tower_ofs, y + self.y_tower_ofs)
-        self.bot_machine_img.goto(x, y)
+        self.base.goto(x, y)
         self.x = x
         self.y = y
 
     def link_keys(self):
-        hotkeys["w"] = self.up_speed
-        hotkeys_release["w"] = self.stop
-        hotkeys["s"] = self.slow_down
-        hotkeys_release["s"] = self.stop
-        hotkeys["a"] = self.right
-        hotkeys_release["a"] = self.stop_rotate
-        hotkeys["d"] = self.left
-        hotkeys_release["d"] = self.stop_rotate
+        self.App.Screen.onkeypress(self.up_speed, "w")
+        self.App.Screen.onkeyrelease(self.stop, "w")
+        self.App.Screen.onkeypress(self.slow_down, "s" )
+        self.App.Screen.onkeyrelease(self.stop, "s")
+        self.App.Screen.onkeypress(self.right, "a")
+        self.App.Screen.onkeyrelease(self.stop_rotate, "a")
+        self.App.Screen.onkeypress(self.left, "d")
+        self.App.Screen.onkeyrelease(self.stop_rotate ,"d")
         self.App.Screen.onscreenclick(self.shoot, 1)
         canvas = self.App.Screen.getcanvas()
         canvas.bind("<Motion>", self.get_and_rotate)
@@ -535,19 +521,19 @@ class PlayerTank:
         self.air_resistance()
         self.x -= self.speed / self.App.slow * math.sin(math.radians(self.angle))
         self.y += self.speed / self.App.slow * math.cos(math.radians(self.angle))
-        self.bot_machine_img.goto(self.x, self.y)
-        if not self.name + "_" + str(round(self.angle)) in self.App.shapes:
+        self.base_img.goto(self.x, self.y)
+        if not self.name + "_" + str(round(self.angle)) + ".png" in self.App.shapes:
             self.App.rotate_texture(self.image_path, round(self.angle), self.name)
-            self.App.shapes.append(self.name + "_" + str(round(self.angle)))
-        self.bot_machine_img.shape(self.name + "_" + str(round(self.angle)))
+            self.App.shapes.append(self.name + "_" + str(round(self.angle)) + ".png")
+        self.base_img.shape(self.name + "_" + str(round(self.angle)) + ".png")
         rad = math.radians(self.angle)
         world_ofs_x = self.x_tower_ofs * math.cos(rad) - self.y_tower_ofs * math.sin(rad)
         world_ofs_y = self.x_tower_ofs * math.sin(rad) + self.y_tower_ofs * math.cos(rad)
         self.img_tower.goto(self.x + world_ofs_x, self.y + world_ofs_y)
-        if not self.name + "_tower_" + str(round(-self.angle_tower)) in self.App.shapes:
+        if not self.name + "_tower_" + str(round(-self.angle_tower)) + ".png" in self.App.shapes:
             self.App.rotate_texture(self.image_path_tower, round(-self.angle_tower), self.name + "_tower")
-            self.App.shapes.append(self.name + "_tower_" + str(round(-self.angle_tower)))
-        self.img_tower.shape(self.name + "_tower_" + str(round(-self.angle_tower)))
+            self.App.shapes.append(self.name + "_tower_" + str(round(-self.angle_tower)) + ".png")
+        self.img_tower.shape(self.name + "_tower_" + str(round(-self.angle_tower)) + ".png")
 
     """def unlink_keys(self):
         self.App.Screen.onkeypress(None, "w")
@@ -562,15 +548,22 @@ class PlayerTank:
 class Bots:
     def __init__(self, App):
         self.App = App
-        bots_data = []
+        self.allied_bots = []
+        self.enemy_bots = []
 
     def add_bot(self, machine, team, intelect):
-        n = len(self.bots_data)
-        self.bots_data.append({"name": f"bots{n}",
+        if team == "allied":
+            n = len(self.allied_bots)
+            self.allied_bots.append({"name": f"allied{n}",
                               "machine": machine, 
-                              "intelect": intelect,
-                              "team": team
+                              "intelect": intelect
                               })
+        else:
+            n = len(self.enemy_bots)
+            self.enemy_bots.append({"name": f"enemy{n}",
+                                "machine": machine, 
+                                "intelect": intelect
+                                })
 
     def spawn_bots(self):
         pass
@@ -765,15 +758,6 @@ class CheckBox:
         self.Ui = Ui
         self.check_boxes = []
 
-class Bots:
-    def __init__(self, App):
-        self.App = App
-        self.allied_bots = []
-        self.enemy_bots = []
-
-    def delete(self, name):
-        pass
-
 class Machines:
     def __init__(self, App):
         self.App = App
@@ -795,7 +779,7 @@ class Machines:
                     machine = self.Ships.registry[name]
                     return machine
                 except:
-                    return self.Planes.registry[self.App.selected_machine]
+                    pass
 
 class Planes:
     registry = {}
@@ -907,7 +891,7 @@ class Scenes:
         self.img_visible_value = []
 
     def leave_game_window(self):
-        hotkeys["esc"] = self.not_leave_game
+        self.App.Screen.onkeypress(self.not_leave_game, "Escape")
         self.App.Screen.onscreenclick(self.App.click, 1)
         self.img_visible_value = [self.image.isvisible(), self.bot_machine_img.isvisible()]
         self.image.hideturtle()
@@ -921,21 +905,25 @@ class Scenes:
 
     def not_leave_game(self):
         self.App.Ui.delete_group("leave_game")
+        self.App.Screen.onkeypress(self.leave_game_window, "Escape")
         self.App.Screen.onscreenclick(self.App.player.shoot, 1)
         self.App.update()
 
     def leave_game(self):
-        self.App.Ui.delete_group("leave_game")
-        self.App.player.hideturtle()
-        self.App.player = None
-        self.play_menu()
         self.App.run_game = False
+        self.App.Ui.delete_group("leave_game")
+        self.App.Screen.onkeypress(self.exit_window, "Escape")
+        self.App.Screen.onscreenclick(self.App.click, 1)
+        self.App.player.base_img.hideturtle()
+        self.App.player.img_tower.hideturtle() if self.App.player.data.cls == "Tank" else None
+        self.App.player = None
+        self.play_menu()  
         self.App.update()
 
     def select_map_window(self):
         self.App.Ui.hide_all()
         self.image.hideturtle()
-        hotkeys["esc"] = self.stop_select
+        self.App.Screen.onkeypress(self.stop_select, "Escape")
         self.last_col = self.App.Screen.bgcolor()
         self.App.Screen.bgcolor(35, 35, 35)
         height = 64
@@ -947,15 +935,16 @@ class Scenes:
             self.App.Ui.Buttons.new(f"map{cls.name}", "rectangle", [height, 25], (x, y - 10 * 8), self.select, "black", 2, "red", "выбрать", ("Arial", 12, "normal"), "red", action_arg = [cls.__name__, cls.name], group = "select_map")
             self.App.Ui.Labels.new(f"{cls.name}label", (x, y - 5 * 10), "center", cls.name, "white", ("Arial", 15, "normal"), group = "select_map")
             if not cls.name in self.App.shapes:
-                map_img = Image.open(cls.mini_image)
-                photo = ImageTk.PhotoImage(map_img)
-                self.App.Screen.addshape(cls.name, turtle.Shape("image", photo))
-                self.App.shapes.append(cls.name)
+                #map_img = Image.open(cls.mini_image)
+                #photo = ImageTk.PhotoImage(map_img)
+                #self.App.Screen.addshape(cls.name, turtle.Shape("image", photo))
+                self.App.Screen.addshape(cls.mini_image)
+                self.App.shapes.append(cls.mini_image)
             t = turtle.Turtle()
             t.speed(0)
             t.penup()
             t.goto(x, y)
-            t.shape(cls.name)
+            t.shape(cls.mini_image)
             self.map_images.append(t)
         self.App.Ui.Buttons.new(f"close_select_window", "rectangle", [40, 40], (self.half_x - 10 * 10, self.half_y - 10 * 10), self.stop_select, "black", 2, "red", "X", ("Arial", 20, "normal"), "red", group = "select_map")
         self.App.update()
@@ -986,7 +975,7 @@ class Scenes:
         self.App.Ui.delete_group("select_map")
         self.App.Ui.show_all()
         self.App.Ui.Labels.change_value("selected_map", "text", f"выбранная карта:\n{self.selected_map}")
-        hotkeys["esc"] = self.exit_window
+        self.App.Screen.onkeypress(self.exit_window, "Escape")
         self.image.showturtle()
         self.App.update()
 
@@ -1036,13 +1025,13 @@ class Scenes:
         self.App.Ui.Buttons.delete("exit", "not_exit")
         self.App.Ui.Labels.delete("advice")
         self.App.Ui.Frames.delete("blackout")
-        hotkeys["esc"] = self.exit_window
+        self.App.Screen.onkeypress(self.exit_window, "Escape")
         self.App.Ui.show_all()
         self.App.update()
 
     def exit_window(self):
         self.App.Ui.hide_all()
-        hotkeys["esc"] = self.dont_exit
+        self.App.Screen.onkeypress(self.dont_exit, "Escape")
         self.img_visible_value = [self.image.isvisible()]
         self.image.hideturtle()
         self.App.Ui.Frames.new("blackout", (35, 35, 35), [(-self.half_x, self.half_y), (self.half_x, self.half_y),
@@ -1059,6 +1048,7 @@ class Scenes:
         self.App.Screen.screensize(self.x - 10, self.y - 10)
         self.image.hideturtle()
         self.bot_machine_img.hideturtle()
+        self.App.Ui.Buttons.new("close_menu", "rectangle", [45, 45], (-self.half_x + 80, self.half_y - 60), self.exit_window, (42, 42, 42), 3, "red", "X", ("Arial", 20, "bold"), "red", group = "gamemode")
         self.App.Ui.Frames.new("machine_info", (42, 42, 42), [(-self.half_x + 10, self.half_y - 10 - self.y / 8), (-self.half_x + 10 + self.x / 6, self.half_y - 10 - self.y / 8), 
                                 (-self.half_x + 10 + self.x / 6, -self.half_y + 10 + self.y / 4), (-self.half_x + 10, -self.half_y + 10 + self.y / 4)])
         self.App.Ui.Frames.new("gamemode_info", (42, 42, 42), [(self.half_x - 10, self.half_y - 10 - self.y / 8), (self.half_x - 10 - self.x / 6, self.half_y - 10 - self.y / 8), 
@@ -1068,24 +1058,24 @@ class Scenes:
         self.App.Ui.Labels.new("selected_map", ((self.half_x * 2 - 10 * 2 - self.x / 6) / 2, self.half_y - 10 * 14 - self.y / 8), "center", "выбранная карта: -", "white", ("Arial", 12, "bold"), "gamemode")
         self.App.Ui.Labels.new("modee", ((self.half_x * 2 - 10 * 2 - self.x / 6) / 2, self.half_y - 10 * 9 - self.y / 8), "center", "", "white", ("Arial", 13, "normal"), "gamemode")
         self.App.Ui.Buttons.new("select_map", "rectangle", [self.x / 6 - 10 * 6, 30], ((self.half_x * 2 - 10 * 2 - self.x / 6) / 2, self.half_y - 10 * 17 - self.y / 8), self.select_map_window, "black", 3, "black", "выбрать карту", ("Arial", 13, "bold"), "red", group = "gamemode")
-        self.App.Ui.Labels.new("bots_num", ((self.half_x * 2 - 10 * 2 - self.x / 6) / 2, self.half_y - 10 * 22 - self.y / 8), "center", "боты: 0", "white", ("Arial", 12, "bold"), "gamemode")
+        self.App.Ui.Labels.new("bots_num", ((self.half_x * 2 - 10 * 2 - self.x / 6) / 2, self.half_y - 10 * 22 - self.y / 8), "center", "боты: 0" if len(self.App.Bots.allied_bots) == 0 and len(self.App.Bots.enemy_bots) == 0 else f"боты: {len(self.App.Bots.allied_bots) + len(self.App.Bots.enemy_bots) == 0}" , "white", ("Arial", 12, "bold"), "gamemode")
         self.App.Ui.Buttons.new("bot_men", "rectangle", [self.x / 6 - 10 * 6, 40], ((self.half_x * 2 - 10 * 2 - self.x / 6) / 2, self.half_y - 10 * 25 - self.y / 8), self.bot_menu, "black", 3, "black", "настройки ботов", ("Arial", 13, "bold"), "red", group = "gamemode")
         self.App.Ui.Frames.new("machine_buttons", (42, 42, 42), [(-self.half_x + 10 + self.x / 4, -self.half_y + self.y / 4), (self.half_x - 10 - self.x / 4, -self.half_y + self.y / 4), 
                                 (self.half_x - 10 - self.x / 4, -self.half_y + self.y / 10), (-self.half_x + 10 + self.x / 4, -self.half_y + self.y / 10)])
         self.App.Ui.Buttons.new("play", "rectangle", [150, 80], (0, self.half_y - 80), self.App.begin_game, (42, 42, 42), 3, "red", "Играть", ("Arial", 25, "normal"), "red") 
         self.App.Ui.Buttons.new("info_hide_show", "rectangle", [16, 32], (-self.half_x + self.x / 6 + 30, self.y / 16), self.hide_info, (42, 42, 42), 3, "black", "<", ("Arial", 15, "bold"), "white")
         self.App.Ui.Buttons.new("gamemode_hide_show", "rectangle", [16, 32], (self.half_x - self.x / 6 - 30, self.y / 16), self.hide_gamemode, (42, 42, 42), 3, "black", ">", ("Arial", 15, "bold"), "white")
-        self.menu_load_machine()
+        self.menu_load_machine(["LaGG3"])
         self.create_machines_buttons()
         self.App.update()
 
     def bot_menu(self):
         self.App.Ui.clear()
-        hotkeys["esc"] = self.close_bot_menu
+        self.App.Screen.onkeypress(self.close_bot_menu, "Escape")
         self.App.Ui.Frames.new("blackout", (35, 35, 35), [(-self.half_x, self.half_y), (self.half_x, self.half_y),
                                                            (self.half_x, -self.half_y), (-self.half_x, -self.half_y)], group="bot_menu")
-        self.App.Ui.Labels.new("allied_bots", [-self.half_x + 40, self.half_y - 100], "left", "союзные боты: ", (0, 192, 255), ("Arial", 40, "bold"), "bot_menu")
-        self.App.Ui.Labels.new("enemy_bots", [-self.half_x + 40, 0], "left", "вражеские боты: ", (218, 40, 18), ("Arial", 40, "bold"), "bot_menu")
+        self.App.Ui.Labels.new("allied_bots", [-self.half_x + 40, self.half_y - 150], "left", "союзные боты: ", (0, 192, 255), ("Arial", 40, "bold"), "bot_menu")
+        self.App.Ui.Labels.new("enemy_bots", [-self.half_x + 40, -50], "left", "вражеские боты: ", (218, 40, 18), ("Arial", 40, "bold"), "bot_menu")
         self.App.Ui.Buttons.new("close_bot_menu", "rectangle", [self.half_x / 10, self.half_x / 10], (self.half_x - 100, self.half_y - 100), self.close_bot_menu, "black", 3, "red", "X", ("Arial", 25, "bold"), "red", group = "bot_menu")
         self.load_allies_bots()
         self.load_enemy_bots()
@@ -1097,30 +1087,30 @@ class Scenes:
         height = lenght // 10
         otstup = lenght / 10 / 4
         size = height - otstup
-        y = self.half_y - 200
+        y = self.half_y - 250
         last_x = 0
 
         if len(self.App.Bots.allied_bots) == 0:
             pass
         else:
             for i, bot in enumerate(self.App.Bots.allied_bots):
-                x = -self.half_x + 100 + size * i + otstup * (i + 1)
-                self.App.Ui.Buttons.new(f"allied_bot{i}", "rectangle", [size, size], (x, y), self.interact, "black", 2, "red", bot["machine"], ("Arial", 13, "normal"), "red", action_arg = [i, "allied"], group = "allied_bots")
+                x = -self.half_x + 100 + size * i + otstup * i 
+                self.App.Ui.Buttons.new(f"allied_bot{i}", "rectangle", [size, size], (x, y), self.interact, "black", 2, "red", self.App.Machines.get(bot["machine"]).name, ("Arial", 13, "normal"), "red", action_arg = [i, "allied"], group = "allied_bots")
                 color = None
                 text = ""
-                if bot["intelect"] == 0:
-                    color = (237, 118, 14)
-                    text = "Слабый"
-                elif bot["intelect"] == 1:
-                    color = (0, 255, 0)
-                    text = "Нормальный"
+                if bot["intelect"] == 1:
+                    color = (237, 118, 20)
+                    text = "слабый"
+                elif bot["intelect"] == 2:
+                    color = (0, 200, 0)
+                    text = "нормальный"
                 else:
-                    color = (200, 0, 0)
-                    text = "Сильный"
-                    self.App.Ui.Labels.new(f"allied_bot{i}_label", [x, y - 20], "center", text, color, ("Arial", 10, "bold"), "allied_bots")
+                    color = (230, 0, 0)
+                    text = "сильный"
+                self.App.Ui.Labels.new(f"allied_bot{i}_label", [x, y - 20], "center", text, color, ("Arial", 10, "bold"), "allied_bots")
                 last_x = x
         if len(self.App.Bots.allied_bots) != 10:
-            x = last_x + size + otstup if len(self.App.Bots.allied_bots) > 1 else -self.half_x + 100 
+            x = last_x + size + otstup if len(self.App.Bots.allied_bots) > 0 else -self.half_x + 100 
             self.App.Ui.Buttons.new(f"add_allied_bot", "rectangle", [size, size], (x, y), self.add_bot, "black", 2, "red", "+", ("Arial", 30, "normal"), "red", action_arg = ["allied"], group = "allied_bots")
         self.App.update()
 
@@ -1130,38 +1120,36 @@ class Scenes:
         height = lenght // 10
         otstup = lenght / 10 / 4
         size = height - otstup
-        y = self.half_y - 100 - self.half_y
+        y = -150
         last_x = 0
 
         if len(self.App.Bots.enemy_bots) == 0:
             pass
         else:
             for i, bot in enumerate(self.App.Bots.enemy_bots):
-                x = -self.half_x + 100 + size * i + otstup * (i + 1)
-                self.App.Ui.Buttons.new(f"enemy_bot{i}", "rectangle", [size, size], (x, y), self.interact, "black", 2, "red", bot["machine"], ("Arial", 13, "normal"), "red", action_arg = [i, "enemy"], group = "enemy_bots")
+                x = -self.half_x + 100 + size * i + otstup * i
+                self.App.Ui.Buttons.new(f"enemy_bot{i}", "rectangle", [size, size], (x, y), self.interact, "black", 2, "red", self.App.Machines.get(bot["machine"]).name, ("Arial", 13, "normal"), "red", action_arg = [i, "enemy"], group = "enemy_bots")
                 color = None
                 text = ""
-                if bot["intelect"] == 0:
+                if bot["intelect"] == 1:
                     color = (237, 118, 14)
-                    text = "Слабый"
-                elif bot["intelect"] == 1:
-                    color = (0, 255, 0)
-                    text = "Нормальный"
+                    text = "слабый"
+                elif bot["intelect"] == 2:
+                    color = (0, 200, 0)
+                    text = "нормальный"
                 else:
                     color = (200, 0, 0)
-                    text = "Сильный"
-                    self.App.Ui.Labels.new(f"enemy_bot{i}_label", [x, y - 20], "center", text, color, ("Arial", 10, "bold"), "enemy_bots")
+                    text = "сильный"
+                self.App.Ui.Labels.new(f"enemy_bot{i}_label", [x, y - 20], "center", text, color, ("Arial", 10, "bold"), "enemy_bots")
                 last_x = x
         if len(self.App.Bots.enemy_bots) != 10:
-            x = last_x + size + otstup if len(self.App.Bots.enemy_bots) > 1 else -self.half_x + 100
+            x = last_x + size + otstup if len(self.App.Bots.enemy_bots) > 0 else -self.half_x + 100
             self.App.Ui.Buttons.new(f"add_enemy_bot", "rectangle", [size, size], (x, y), self.add_bot, "black", 2, "red", "+", ("Arial", 30, "normal"), "red", action_arg = ["enemy"], group = "enemy_bots")
         self.App.update()
 
     def add_bot(self, arg):
         self.App.Ui.clear()
-        self.creating_bot_data["machine"] = None
-        self.creating_bot_data["intelect"] = None
-        hotkeys["esc"] = self.not_save_window
+        self.App.Screen.onkeypress(self.not_save_window, "Escape")
         half_size = self.half_y / 4
         size_two = self.half_y / 8
         self.App.Screen.bgcolor(25, 25, 25)
@@ -1181,10 +1169,11 @@ class Scenes:
             if i == 10:
                 break
             x = -self.half_x + 100 + size * i + otstup * (i + 1)
-            self.App.Ui.Buttons.new(f"", "rectangle", [size, size], (x, y), self.select_machine_for_bot, "black", 2, "red", machine, ("Arial", 13, "normal"), "red", action_arg = [machine], group = "creation_menu")
+            self.App.Ui.Buttons.new(f"{machine}_but", "rectangle", [size, size], (x, y), self.select_machine_for_bot, "black", 2, "red", self.App.Machines.get(machine).name, ("Arial", 13, "normal"), "red", action_arg = [machine], group = "creation_menu")
             last_x = x
         if len(self.App.Machines.player_machines) > 9:
             self.App.Ui.Buttons.new(f"more", "rectangle", [size, size], (last_x + size + otstup, y), self.add_bot, "black", 2, "red", "+", ("Arial", 30, "normal"), "red", group = "creation_menu")
+        self.App.Ui.Buttons.new("not_savee", "rectangle", [50, 50], (self.half_x - 100, self.half_y - 90), self.stop_create_bot, "black", 3, "red", "X", ("Arial", 20, "bold"), "red", group = "creation_menu")
         self.App.Ui.Frames.new("machineee  ", (25, 25, 25), [(-self.half_x + 100 - otstup, y + height / 2), (-self.half_x + 100 - otstup, y - height / 2), 
                                                         (-self.half_x + 100 + size * 10 + otstup * (10 + 1) + otstup, y - height / 2), (-self.half_x + 100 + size * 10 + otstup * (10 + 1) + otstup, y + height / 2)], group="creation_menu")
         self.App.Ui.Labels.new("now_machine", [0 , y - 100], "center", "Выбранная техника: -   ", (218, 40, 18), ("Arial", 20, "bold"), "creation_menu")
@@ -1194,23 +1183,30 @@ class Scenes:
                                                             (-self.half_x + 150 + half_size, -half_size), (-self.half_x + 150 - half_size, -half_size)], False, group="creation_menu")
         self.App.Ui.Labels.new("infoo", [-self.half_x + 150 , -half_size], "center", "", (250, 250, 250), ("Arial", 8, "normal"), "creation_menu")
         self.App.Ui.Labels.new("intelect_label", [0 , -half_size - 50], "center", "Интелект бота", (218, 40, 18), ("Arial", 22, "bold"), "creation_menu")
-        self.App.Ui.Buttons.new("low_intelect", "rectangle", [half_size * 2, size_two], (-self.half_x + 150, -half_size - 100), self.choose_bot_intelect, "black", 3, "red", "низкий", ("Arial", 15, "bold"), "green", action_arg = [2], group = "creation_menu")
+        self.App.Ui.Buttons.new("low_intelect", "rectangle", [half_size * 2, size_two], (-self.half_x + 150, -half_size - 100), self.choose_bot_intelect, "black", 3, "red", "низкий", ("Arial", 15, "bold"), "green", action_arg = [1], group = "creation_menu")
         self.App.Ui.Buttons.new("normal_intelect", "rectangle", [half_size * 2, size_two], (0, -half_size - 100), self.choose_bot_intelect, "black", 3, "red", "средний", ("Arial", 15, "bold"), "yellow", action_arg = [2], group = "creation_menu")
         self.App.Ui.Buttons.new("high_intelect", "rectangle", [half_size * 2, size_two], (self.half_x - 150, -half_size - 100), self.choose_bot_intelect, "black", 3, "red", "высокий", ("Arial", 15, "bold"), "red", action_arg = [3], group = "creation_menu")   
+        self.App.Ui.Buttons.new("save_and_addd", "rectangle", [half_size * 2, size_two], (0, -half_size - 200), self.save_and_add, "black", 3, "red", "сохранить", ("Arial", 15, "bold"), "white", group = "creation_menu")
+
         self.App.update()
 
     def choose_bot_intelect(self, arg):
         self.creating_bot_data["intelect"] = arg[0]
 
     def save_and_add(self):
-        pass
+        self.App.Ui.clear()
+        self.App.Bots.add_bot(self.creating_bot_data["machine"], self.creating_bot_data["team"], self.creating_bot_data["intelect"])
+        self.bot_menu()
+        self.App.update()
 
     def stop_create_bot(self):
-        pass
+        self.App.Ui.clear()
+        self.bot_menu()
+        self.App.update()
 
     def not_save_window(self):
         self.App.Ui.hide_all()
-        hotkeys["esc"] = self.close_not_save
+        self.App.Screen.onkeypress(self.close_not_save, "Escape")
         self.App.Screen.onscreenclick(self.close_not_save, 1)
         self.App.Ui.Frames.new("machinee", (10, 10, 10), [(-self.half_x, self.half_y), (self.half_x, self.half_y), 
                                                         (self.half_x, -self.half_y), (-self.half_x, -self.half_x)], group="info_not_saved")
@@ -1221,7 +1217,7 @@ class Scenes:
     def close_not_save(self, x = None, y = None):
         self.App.Ui.delete_group("info_not_saved")
         self.App.Screen.onscreenclick(self.App.click, 1)
-        hotkeys["esc"] = self.not_save_window
+        self.App.Screen.onkeypress(self.not_save_window, "Escape")
         self.App.Ui.show_all()
         self.App.update()
 
@@ -1229,15 +1225,16 @@ class Scenes:
         pass
 
     def select_machine_for_bot(self, arg):
+        machine = self.App.Machines.get(arg[0])
         self.creating_bot_data["machine"] = arg[0]
-        self.App.Ui.Labels.change_value("now_machine", "text", f"Выбранная техника: {arg[0]}")
+        self.App.Ui.Labels.change_value("now_machine", "text", f"Выбранная техника: {machine.name}")
         self.App.Ui.Frames.change_value("machine_infoo", "visible", True)
         self.App.Ui.Frames.change_value("no_machine_img", "visible", False)
-        machine = self.App.Machines.get(arg[0])
         if not machine.shape in self.App.shapes:
-            machine_img = Image.open(machine.shape)
-            photo = ImageTk.PhotoImage(machine_img)
-            self.App.Screen.addshape(machine.shape, turtle.Shape("image", photo))
+            #machine_img = Image.open(machine.shape)
+            #photo = ImageTk.PhotoImage(machine_img)      3.13.7 python
+            #self.App.Screen.addshape(machine.shape, turtle.Shape("image", photo))
+            self.App.Screen.addshape(machine.shape)
             self.App.shapes.append(machine.shape)
         self.bot_machine_img.shape(machine.shape)
         self.bot_machine_img.showturtle()
@@ -1262,10 +1259,8 @@ class Scenes:
         pass
 
     def close_bot_menu(self):
-        hotkeys["esc"] = self.exit_window
-        self.App.Ui.delete_group("bot_menu")
-        self.App.Ui.delete_group("allied_bots")
-        self.App.Ui.delete_group("enemy_bots")
+        self.App.Screen.onkeypress(self.exit_window, "Escape")
+        self.App.Ui.clear()
         self.play_menu()
         self.App.Ui.Labels.change_value("bots_num", "text", f"боты: {len(self.App.Bots.enemy_bots) + len(self.App.Bots.allied_bots)}")
         self.App.update()
@@ -1308,7 +1303,7 @@ class Scenes:
         self.App.Ui.delete_group("bg")
         self.App.Ui.Labels.delete("machine_info")
         machine = self.App.Machines.get(machin[0])
-        self.App.selected_machine = machine.__name__
+        self.App.selected_machine = machin[0]
         info = f"""            ИНФОРМАЦИЯ
 
     Техника: {machine.name}
@@ -1335,9 +1330,10 @@ class Scenes:
                 self.App.Screen.bgcolor(0, 63, 255)
                 self.App.Ui.Labels.change_value("modee", "text", "морской бой")
         if not machine.shape in self.App.shapes:
-            machine_img = Image.open(machine.shape)
-            photo = ImageTk.PhotoImage(machine_img)
-            self.App.Screen.addshape(machine.shape, turtle.Shape("image", photo))
+            #machine_img = Image.open(machine.shape)
+            #photo = ImageTk.PhotoImage(machine_img)                             #3.13.7 python part
+            #self.App.Screen.addshape(machine.shape, turtle.Shape("image", photo))
+            self.App.Screen.addshape(machine.shape)
             self.App.shapes.append(machine.shape)
         self.image.showturtle()
         self.image.shape(machine.shape)
@@ -1379,12 +1375,8 @@ class SteppePath(Maps):
     obstacle = {}
 
 version = "0.1 alpha"
-hotkeys = {} 
-hotkeys_release = {}
-listener = None
 
 def run():
-    global listener
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     Game = App()
     with open("assets/player_data.json", "r", encoding="utf-8") as f:
@@ -1394,8 +1386,6 @@ def run():
         data["first_time"] = False
         with open("assets/player_data.json", "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
-    listener = keyboard.Listener(on_press=Game.on_press, on_release=Game.on_release)
-    listener.start() 
     Game.Machines.player_machines = data["machines"]
     Game.settings = data["settings"]
     Game.language = data["language"]
@@ -1413,6 +1403,5 @@ if __name__ == "__main__":
         with open("assets/exception_log.txt", "r", encoding="utf-8") as file:
             last = file.read()
             file.write(last + f"[ERROR] VERSION {version} TIME {datetime.datetime.now()}: {e}" + "\n")
-            listener.join()
 
-listener.join()
+#pyinstaller -F -w -i i.ico -n "War Turtle" --add-data "i.ico;." --add-data "assets;assets" main.py - команда в cmd для получения exe

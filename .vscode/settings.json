@@ -1,0 +1,8 @@
+{
+    "python-envs.workspaceSearchPaths": [
+        ".venv",
+        "*/.venv",
+        "C:\\Users\\user\\AppData\\Local\\Programs\\Python\\Python315"
+    ],
+    "python-envs.defaultEnvManager": "ms-python.python:system"
+}
