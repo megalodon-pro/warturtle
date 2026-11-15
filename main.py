@@ -5,8 +5,7 @@ import random
 import json 
 import os
 import datetime
-from PIL import Image, ImageTk
-from pynput import keyboard
+from PIL import Image
 from screeninfo import get_monitors
 
 turtle.colormode(255)  
@@ -70,7 +69,7 @@ class App:
             self.bullet_drawer = turtle.Turtle()
             self.bullet_drawer.hideturtle()
             self.bullet_drawer.penup()
-            self.bullet_drawer.color(253,207,88)
+            self.bullet_drawer.color(119, 116, 117)
             self.bullet_drawer.speed(0)
             self.Maps.load_map()
             cls = self.Machines.get(self.selected_machine).cls
@@ -84,49 +83,55 @@ class App:
                 self.player.move()
                 self.move_bullet()
                 self.draw_bullet()
+                #self.check_colision()
                 time.sleep(1 / self.fps)
                 self.update()
         else:
             self.Scenes.map_not_selected() 
 
-    def new_bullet(self, armor_projectile, speed, size, start_pos, angle, mass):
+    def new_bullet(self, team, projectile, y_speed, x_speed, y, x, mass, angle):
+        size = None
+        if mass < 0.1:
+            size = [1, 1]
+        elif mass < 1:
+            size = [2, 1]
+        elif mass < 5:
+            size = [3, 3]
+        else:
+            size = [4, 2]
         self.bullets.append({
-            "armor_projectile": armor_projectile,
-            "size": size,
-            "speed": speed,
+            "sender": "",
             "angle": angle,
-            "pos": start_pos,
-            "mass": mass
+            "size": size,
+            "team": team,
+            "projectile": projectile,
+            "y_speed": y_speed,
+            "x_speed": x_speed,
+            "x": x,
+            "y": y
         })
 
     def draw_bullet(self):
-        for blt in self.bullets:
-            self.bullet_drawer.goto(blt["pos"])
-            x_pos = blt["pos"][0]
-            y_pos = blt["pos"][1]
-            half_a = blt["size"][0] / 2
-            half_b = blt["size"][0] / 2
-            cos = math.cos(math.radians(blt["angle"]))
-            sin = math.sin(math.radians(blt["angle"]))
+        self.bullet_drawer.clear()
+        for bullet in self.bullets:
+            self.bullet_drawer.goto(bullet["x"], bullet["y"])
             self.bullet_drawer.pendown()
-            self.bullet_drawer.begin_fill()
-            self.bullet_drawer.goto(x_pos + (-half_a * cos + half_b * sin), y_pos + (-half_a * sin - half_b * cos))
-            self.bullet_drawer.goto(x_pos + (half_a * cos + half_b * sin), y_pos + (half_a * sin - half_b * cos))
-            self.bullet_drawer.goto(x_pos + (half_a * cos + -half_b * sin), y_pos + (half_a * sin + half_b * cos))
-            self.bullet_drawer.goto(x_pos + (-half_a * cos + -half_b * sin), y_pos + (-half_a * sin + half_b * cos))
-            self.bullet_drawer.end_fill()
+            self.bullet_drawer.setheading(bullet["angle"])
+            self.bullet_drawer.pensize(bullet["size"][1])
+            self.bullet_drawer.forward(bullet["size"][0])
             self.bullet_drawer.penup()
 
     def move_bullet(self):
-        for blt in self.bullets:
-            blt["pos"][0] = blt["pos"][0] + blt["speed"] * math.sin(math.radians(blt["angle"])) / self.slow
-            blt["pos"][1] = blt["pos"][1] + blt["speed"] * math.cos(math.radians(blt["angle"])) / self.slow
-            blt["speed"] = blt["speed"] - 1 - blt["mass"]
+        for i, bullet in enumerate(self.bullets):
+            self.bullets[i]["x"] = bullet["x"] + bullet["x_speed"]
+            self.bullets[i]["y"] = bullet["y"] + bullet["y_speed"]
 
     def check_colision(self):
-        pass
+        for i, bullet in enumerate(self.bullets):
+            if bullet["x"] > self.maxsize[0] / 2 or bullet["x"] < -self.maxsize[0] / 2 or bullet["y"] > -self.maxsize[1] / 2 or bullet["y"] > self.maxsize[1] / 2:
+                self.bullets.pop(i)
 
-    def click(self, x, y):
+    def click(self, x, y, filter = False):
         distances = []
         for button in self.Ui.Buttons.buttons:
 
@@ -139,20 +144,23 @@ class App:
                     distances.append(math.sqrt(dx ** 2 + dy ** 2))
                 case "rectangle":
                     if (button["pos"][0] - button["size"][0] // 2 < x < button["pos"][0] + button["size"][0] // 2) and (button["pos"][1] - button["size"][1] // 2 < y < button["pos"][1] + button["size"][1] // 2):
-                        if button["arg"][0] == False:
+                        if button["arg"][0] is False:
                             button["action"]()
                         else:
                             button["action"](button["arg"])
                         return
         if distances == []:
-            return               
+            return           
         nearest = min(distances)
         index = distances.index(nearest)
         if nearest < self.Ui.Buttons.buttons[index]["size"] / 2:
-            if self.Ui.Buttons.buttons[index]["arg"][0] == False:
-                self.Ui.Buttons.buttons[index]["action"]()
-            else:
-                button["action"](self.Ui.Buttons.buttons[index]["arg"])
+            if self.Ui.Buttons.buttons[index]["name"] == filter or not filter:
+                if self.Ui.Buttons.buttons[index]["arg"][0] == False:
+                    self.Ui.Buttons.buttons[index]["action"]()
+                else:
+                    button["action"](self.Ui.Buttons.buttons[index]["arg"])
+        else:
+            return False
 
     def update(self):
         self.renderer.clear()
@@ -247,7 +255,8 @@ class PlayerPlane:
         self.App = App
         self.data = self.App.Machines.get(machine_name)
         self.health = self.data.hp
-        self.angle = 270
+        self.recharge = 0
+        self.angle = 270  
         self.y = 0
         self.forward = False
         self.back = False
@@ -259,22 +268,25 @@ class PlayerPlane:
             "capacity": self.data.weapons[0]["capacity"],
             "less_shells": self.data.weapons[0]["capacity"],
             "shell_for_second": self.data.weapons[0]["shell_for_second"],
-            "time_to_shoot": 0,
+            "recharge": self.data.weapons[1]["recharge"],
             "armor_projectile": self.data.weapons[0]["armor_projectile"],
             "offset": self.data.weapons[0]["offset"],
-            "shell_mass": self.data.weapons[0]["bullet_mass"],
-            "damage": self.data.weapons[0]["damage"]
+            "mass": self.data.weapons[0]["mass"],
+            "damage": self.data.weapons[0]["damage"],
+            "speed": self.data.weapons[0]["speed"]
         }
         self.extra_weapon = None if len(self.data.weapons) == 1 else {
             "capacity": self.data.weapons[1]["capacity"],
             "less_shells": self.data.weapons[1]["capacity"],
             "shell_for_second": self.data.weapons[1]["shell_for_second"],
-            "time_to_shoot": 0,
+            "recharge": self.data.weapons[1]["recharge"],
             "armor_projectile": self.data.weapons[1]["armor_projectile"],
             "offset": self.data.weapons[1]["offset"],
-            "shell_mass": self.data.weapons[1]["bullet_mass"],
-            "damage": self.data.weapons[1]["damage"]
+            "mass": self.data.weapons[1]["mass"],
+            "damage": self.data.weapons[1]["damage"],
+            "speed": self.data.weapons[1]["speed"]
         }
+        self.capacity = self.weapon["capacity"]
         self.name = machine_name
         self.rotate_for_second = self.data.rotate_for_second
         self.speed_for_second = self.data.speed_for_second
@@ -287,8 +299,29 @@ class PlayerPlane:
         self.speed = 300
         self.link_keys()
 
-    def shoot(self):
-        pass
+    def shoot(self, useless, useless2):
+        if self.recharge < 0:
+            self.recharge = 0
+        if self.recharge != 0:
+            return
+        used_bullet = 0
+        angle_rad = math.radians(-self.angle) #% 360)
+        x_speed = self.weapon["speed"] * math.sin(angle_rad) / 250
+        y_speed = self.weapon["speed"] * math.cos(angle_rad) / 250
+        if int(self.weapon["shell_for_second"]) > 1:
+            dist = 50 / int(self.weapon["shell_for_second"])
+            for i in range(int(self.weapon["shell_for_second"])):
+                x = self.x + dist * math.sin(angle_rad) * i
+                y = self.y + dist * math.cos(angle_rad) * i
+                self.App.new_bullet("allien", self.weapon["armor_projectile"], y_speed, x_speed, y, x, self.weapon["mass"], self.angle)
+            used_bullet = int(self.weapon["shell_for_second"])
+        else:
+            self.App.new_bullet("allien", self.weapon["armor_projectile"], y_speed, x_speed, self.y, self.x, self.weapon["mass"], self.angle)
+            used_bullet = 1
+        self.capacity -= used_bullet
+        if self.capacity <= 0:
+            self.capacity = self.weapon["capacity"]
+            self.recharge = self.weapon["recharge"]
 
     def goto(self, x, y):
         self.base_img.goto(x, y)
@@ -349,6 +382,7 @@ class PlayerPlane:
         self.angle_speed = 0
 
     def move(self):
+        self.recharge -= 1 / self.App.slow if self.recharge > 0 else 0
         self.speed += self.boost / self.App.slow
         self.angle += self.angle_speed
         if self.forward:
@@ -380,6 +414,7 @@ class PlayerTank:
         self.App = App
         self.data = self.App.Machines.get(machine_name)
         self.health = self.data.hp
+        self.recharge = 0
         self.angle = 0
         self.y = 0
         self.forward = False
@@ -401,11 +436,14 @@ class PlayerTank:
         self.weapon = {
             "capacity": self.data.weapons[0]["capacity"],
             "shell_for_second": self.data.weapons[0]["shell_for_second"],
-            "time_to_shoot": 0,
+            "recharge": self.data.weapons[0]["recharge"],
             "armor_projectile": self.data.weapons[0]["armor_projectile"],
             "offset": self.data.weapons[0]["offset"],
-            "damage": self.data.weapons[0]["damage"]
+            "damage": self.data.weapons[0]["damage"],
+            "mass": self.data.weapons[0]["mass"],
+            "speed": self.data.weapons[0]["speed"]
         }
+        self.capacity = self.weapon["capacity"]
         self.base_img = turtle.Turtle()
         self.base_img.penup()
         self.base_img.speed(0)
@@ -417,8 +455,31 @@ class PlayerTank:
         self.y_tower_ofs = self.data.tower_y_offset
         self.link_keys()
 
-    def shoot(self):
-        pass
+    def shoot(self, useless, useless2):
+        if self.recharge < 0:
+            self.recharge = 0
+        if self.recharge != 0:
+            return
+        used_bullet = 0
+        rad = math.radians(self.angle)
+        world_ofs_x = self.x_tower_ofs * math.cos(rad) - self.y_tower_ofs * math.sin(rad)
+        world_ofs_y = self.x_tower_ofs * math.sin(rad) + self.y_tower_ofs * math.cos(rad)
+        angle_rad = math.radians(self.angle_tower) #% 360)
+        x_speed = self.weapon["speed"] * math.sin(angle_rad) / 250
+        y_speed = self.weapon["speed"] * math.cos(angle_rad) / 250
+        if int(self.weapon["shell_for_second"]) > 1:
+            dist = 50 / int(self.weapon["shell_for_second"])
+            for i in range(int(self.weapon["shell_for_second"])):
+                x = self.x + world_ofs_x + dist * math.sin(angle_rad) * i
+                y = self.y + world_ofs_y + dist * math.cos(angle_rad) * i
+                self.App.new_bullet("allien", self.weapon["armor_projectile"], y_speed, x_speed, y, x, self.weapon["mass"], self.angle_tower)
+        else:
+            self.App.new_bullet("allien", self.weapon["armor_projectile"], y_speed, x_speed, self.y + world_ofs_y, self.x + world_ofs_x, self.weapon["mass"], self.angle_tower)
+            used_bullet = 1
+        self.capacity -= used_bullet
+        if self.capacity <= 0:
+            self.capacity = self.weapon["capacity"]
+            self.recharge = self.weapon["recharge"]
 
     def goto(self, x, y):
         self.img_tower.goto(x + self.x_tower_ofs, y + self.y_tower_ofs)
@@ -512,6 +573,7 @@ class PlayerTank:
         self.angle_speed = 0
 
     def move(self):
+        self.recharge -= 1 / self.App.slow if self.recharge > 0 else 0
         self.speed += self.boost / self.App.slow
         self.angle += self.angle_speed
         if self.forward:
@@ -595,6 +657,11 @@ class Labels:
         for i, label in enumerate(self.labels):
             if label["name"] == name:
                 return i
+
+    def get_value(self, name, key):
+        for label in self.labels:
+            if label["name"] == name:
+                return label[key]
                        
     def change_value(self, name, key, value):
         for label in self.labels:
@@ -645,7 +712,12 @@ class Buttons:
         for i, button in enumerate(self.buttons):
             if button["name"] == name:
                 return i
-            
+
+    def get_value(self, name, key):
+        for button in self.buttons:
+            if button["name"] == name:
+                return button[key]
+
     def change_value(self, name, key, value):
         for button in self.buttons:
             if button["name"] == name:
@@ -811,8 +883,9 @@ class LaGG3(Planes):
             "armor_projectile": 12, #пробиваемость мм
             "recharge": 10,
             "offset": [[0, 0]], # смещение по X, Y
-            "bullet_mass": 0.2,
-            "damage": 3
+            "mass": 0.2,
+            "damage": 3,
+            "speed": 3000
         },
         {
             "name": "Пулемёт ШВАК",
@@ -821,8 +894,9 @@ class LaGG3(Planes):
             "armor_projectile": 8,
             "recharge": 5,
             "offset": [[0, 0], [0, 0]],
-            "bullet_mass": 0.2,
-            "damage": 1
+            "mass": 0.2,
+            "damage": 1,
+            "speed": 3000
         }]
         
 class Tanks:
@@ -836,7 +910,7 @@ class Tanks:
         super().__init_subclass__(**kwargs)
         Tanks.registry[cls.__name__] = cls 
 
-class T26(Tanks):
+class T26(Tanks):    
         name = "Т-26"
         cls = "Tank"
         health = 250
@@ -861,8 +935,9 @@ class T26(Tanks):
             "armor_projectile": 45,
             "recharge": 6,
             "offset": [[3, 3]],
-            "bullet_mass": 1.3,
-            "damage": 25
+            "mass": 1.3,
+            "damage": 25,
+            "speed": 3000
         }]
 
 class Ships:
@@ -889,6 +964,8 @@ class Scenes:
         self.bot_machine_img.goto(self.half_x - 150, 0)
         self.creating_bot_data = {}
         self.img_visible_value = []
+        self.machine = ""
+        self.name = ""
 
     def leave_game_window(self):
         self.App.Screen.onkeypress(self.not_leave_game, "Escape")
@@ -1065,7 +1142,7 @@ class Scenes:
         self.App.Ui.Buttons.new("play", "rectangle", [150, 80], (0, self.half_y - 80), self.App.begin_game, (42, 42, 42), 3, "red", "Играть", ("Arial", 25, "normal"), "red") 
         self.App.Ui.Buttons.new("info_hide_show", "rectangle", [16, 32], (-self.half_x + self.x / 6 + 30, self.y / 16), self.hide_info, (42, 42, 42), 3, "black", "<", ("Arial", 15, "bold"), "white")
         self.App.Ui.Buttons.new("gamemode_hide_show", "rectangle", [16, 32], (self.half_x - self.x / 6 - 30, self.y / 16), self.hide_gamemode, (42, 42, 42), 3, "black", ">", ("Arial", 15, "bold"), "white")
-        self.menu_load_machine(["LaGG3"])
+        self.menu_load_machine([self.App.selected_machine])
         self.create_machines_buttons()
         self.App.update()
 
@@ -1095,19 +1172,19 @@ class Scenes:
         else:
             for i, bot in enumerate(self.App.Bots.allied_bots):
                 x = -self.half_x + 100 + size * i + otstup * i 
-                self.App.Ui.Buttons.new(f"allied_bot{i}", "rectangle", [size, size], (x, y), self.interact, "black", 2, "red", self.App.Machines.get(bot["machine"]).name, ("Arial", 13, "normal"), "red", action_arg = [i, "allied"], group = "allied_bots")
+                self.App.Ui.Buttons.new(f"allied_bot{i}", "rectangle", [size, size], (x, y), self.want_to_remove, "black", 2, "red", self.App.Machines.get(bot["machine"]).name, ("Arial", 13, "normal"), "red", action_arg = [i, "allied"], group = "allied_bots")
                 color = None
                 text = ""
                 if bot["intelect"] == 1:
-                    color = (237, 118, 20)
+                    color = (0, 200, 0)
                     text = "слабый"
                 elif bot["intelect"] == 2:
-                    color = (0, 200, 0)
+                    color = (237, 118, 10)
                     text = "нормальный"
                 else:
                     color = (230, 0, 0)
                     text = "сильный"
-                self.App.Ui.Labels.new(f"allied_bot{i}_label", [x, y - 20], "center", text, color, ("Arial", 10, "bold"), "allied_bots")
+                self.App.Ui.Labels.new(f"allied_bot{i}", [x, y - 20], "center", text, color, ("Arial", 10, "bold"), "allied_bots")
                 last_x = x
         if len(self.App.Bots.allied_bots) != 10:
             x = last_x + size + otstup if len(self.App.Bots.allied_bots) > 0 else -self.half_x + 100 
@@ -1128,14 +1205,14 @@ class Scenes:
         else:
             for i, bot in enumerate(self.App.Bots.enemy_bots):
                 x = -self.half_x + 100 + size * i + otstup * i
-                self.App.Ui.Buttons.new(f"enemy_bot{i}", "rectangle", [size, size], (x, y), self.interact, "black", 2, "red", self.App.Machines.get(bot["machine"]).name, ("Arial", 13, "normal"), "red", action_arg = [i, "enemy"], group = "enemy_bots")
+                self.App.Ui.Buttons.new(f"enemy_bot{i}", "rectangle", [size, size], (x, y), self.want_to_remove, "black", 2, "red", self.App.Machines.get(bot["machine"]).name, ("Arial", 13, "normal"), "red", action_arg = [i, "enemy"], group = "enemy_bots")
                 color = None
                 text = ""
                 if bot["intelect"] == 1:
-                    color = (237, 118, 14)
+                    color = (0, 200, 0)
                     text = "слабый"
                 elif bot["intelect"] == 2:
-                    color = (0, 200, 0)
+                    color = (237, 118, 14)
                     text = "нормальный"
                 else:
                     color = (200, 0, 0)
@@ -1221,8 +1298,39 @@ class Scenes:
         self.App.Ui.show_all()
         self.App.update()
 
-    def interact(self, arg):
-        pass
+    def want_to_remove(self, arg):
+        nam = f"{arg[1]}_bot{arg[0]}"
+        self.name = nam
+        self.machine = self.App.Ui.Buttons.get_value(nam, "text")
+        self.App.Ui.Buttons.change_value(nam, "text", "-")
+        self.App.Ui.Buttons.change_value(nam, "font", ("Arial", 40, "bold"))
+        self.App.Ui.Buttons.change_value(nam, "action", self.remove_bot)
+        self.App.Ui.Labels.change_value(nam, "visible", False)
+        self.App.Screen.onscreenclick(self.special_func, 1)
+        self.App.update()
+
+    def special_func(self, x, y):
+        if not self.App.click(x, y, self.name):
+            self.not_remove()
+
+    def not_remove(self):
+        self.App.Ui.Buttons.change_value(self.name, "text", self.machine)
+        self.App.Ui.Buttons.change_value(self.name, "font", ("Arial", 13, "normal"))
+        self.App.Ui.Labels.change_value(self.name, "visible", True)
+        self.App.Ui.Buttons.change_value(self.name, "action", self.want_to_remove)
+        self.App.Screen.onscreenclick(self.App.click, 1)
+        self.App.update()
+
+    def remove_bot(self, arg):
+        if self.name[0] == "a":
+            self.App.Bots.allied_bots.pop(arg[0])
+            self.App.Ui.delete_group("allied_bots")
+            self.load_allies_bots()
+        else:
+            self.App.Bots.enemy_bots.pop(arg[0])
+            self.App.Ui.delete_group("enemy_bots")
+            self.load_enemy_bots()
+        self.App.update()
 
     def select_machine_for_bot(self, arg):
         machine = self.App.Machines.get(arg[0])
@@ -1251,7 +1359,7 @@ class Scenes:
     урон: {machine.weapons[0]["damage"]}
     {machine.weapons[0]["capacity"]} снарядов 
     перезарядка {machine.weapons[0]["recharge"]} сек
-"""     
+        """     
         self.App.Ui.Labels.change_value("infoo", "text", info) 
         self.App.update()
 
@@ -1321,7 +1429,7 @@ class Scenes:
         self.App.Ui.Labels.new("machine_info", (-self.half_x + self.x / 10 - 15, 0), "center", info, "white", ("Arial", 11, "normal"))
         match machine.cls:
             case "Tank":
-                self.App.Screen.bgcolor(34, 139, 34)
+                self.App.Screen.bgcolor(30, 181, 58)#(0, 158, 73)
                 self.App.Ui.Labels.change_value("modee", "text", "танковый бой")
             case "Plane":
                 self.App.Screen.bgcolor(68, 176, 255)
@@ -1370,7 +1478,15 @@ class SteppePath(Maps):
     name = "Степная тропинка"
     size = (900, 900)
     for_machine = "tank"
-    bgcolor = "green"
+    bgcolor = (170, 221, 109)
+    mini_image = "assets/images/steppe_path.png"
+    obstacle = {}
+
+class Desert():
+    name = "Пустыня"
+    size = (900, 900)
+    for_machine = "tank"
+    bgcolor = (193, 154, 107)
     mini_image = "assets/images/steppe_path.png"
     obstacle = {}
 
@@ -1379,6 +1495,7 @@ version = "0.1 alpha"
 def run():
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
     Game = App()
+    Game.Screen.listen()
     with open("assets/player_data.json", "r", encoding="utf-8") as f:
         data = json.load(f)
     if data["first_time"]:
