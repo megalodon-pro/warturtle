@@ -4,7 +4,6 @@ import math
 import random
 import json 
 import os
-import datetime
 from PIL import Image
 from screeninfo import get_monitors
 
@@ -1429,7 +1428,7 @@ class Scenes:
         self.App.Ui.Labels.new("machine_info", (-self.half_x + self.x / 10 - 15, 0), "center", info, "white", ("Arial", 11, "normal"))
         match machine.cls:
             case "Tank":
-                self.App.Screen.bgcolor(30, 181, 58)#(0, 158, 73)
+                self.App.Screen.bgcolor(30, 181, 58)
                 self.App.Ui.Labels.change_value("modee", "text", "танковый бой")
             case "Plane":
                 self.App.Screen.bgcolor(68, 176, 255)
@@ -1478,7 +1477,7 @@ class SteppePath(Maps):
     name = "Степная тропинка"
     size = (900, 900)
     for_machine = "tank"
-    bgcolor = (170, 221, 109)
+    bgcolor = (30, 181, 58)
     mini_image = "assets/images/steppe_path.png"
     obstacle = {}
 
@@ -1512,13 +1511,6 @@ def run():
     Game.Screen.mainloop()
 
 if __name__ == "__main__":
-    try:
-        run()
-    except Exception as e:
-        print(e)
-        print("Произошла ошибка! Лог ошибки последней игры находиться в файле exception_log.txt")
-        with open("assets/exception_log.txt", "r", encoding="utf-8") as file:
-            last = file.read()
-            file.write(last + f"[ERROR] VERSION {version} TIME {datetime.datetime.now()}: {e}" + "\n")
+    run()
 
 #pyinstaller -F -w -i i.ico -n "War Turtle" --add-data "i.ico;." --add-data "assets;assets" main.py - команда в cmd для получения exe
