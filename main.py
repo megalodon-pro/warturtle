@@ -38,7 +38,11 @@ class App:
         self.renderer.penup()
         self.renderer.hideturtle()
         self.renderer.speed(0)
-        self.bullet_drawer = None
+        self.bullet_drawer = turtle.Turtle()
+        self.bullet_drawer.hideturtle()
+        self.bullet_drawer.penup()
+        self.bullet_drawer.color(119, 116, 117)
+        self.bullet_drawer.speed(0)
         self.game_settings = {}
         self.settings = {}
         self.bullets = []
@@ -64,27 +68,45 @@ class App:
         os.remove(tmp_path)
 
     def begin_game(self):
+        global end, bots
         if self.selected_map != "":
-            self.bullet_drawer = turtle.Turtle()
-            self.bullet_drawer.hideturtle()
-            self.bullet_drawer.penup()
-            self.bullet_drawer.color(119, 116, 117)
-            self.bullet_drawer.speed(0)
             self.Maps.load_map()
+            self.Ui.Labels.new("health", (-self.maxsize[0] / 2.5, self.maxsize[1] / 2.5), "center", "Здоровье: ", "black", ("Arial", 20, "bold"), group="game")
+            self.Ui.Labels.new("recharge", (-self.maxsize[0] / 2.5, self.maxsize[1] / 2.5 - 25), "center", "Боеприпасы: ", "black", ("Arial", 20, "bold"), group="game")
             cls = self.Machines.get(self.selected_machine).cls
             if cls == "Plane":
                 self.player = PlayerPlane(self, self.selected_machine)
             else:
                 self.player = PlayerTank(self, self.selected_machine)
+            self.player.link_keys()
+            y = self.maxsize[1] / 2.5 - 50
+            for i, bot in enumerate(self.Bots.allied_bots):
+                Bot = BotTankClass(self, bot["machine"], "allien", bot["intelect"], bot["name"])
+                Bot.goto(-self.maxsize[0] / 2.5 + 50, y + 50 * i)
+                Bot.machine_class.angle = 90
+                Bot.machine_class.angle_tower = 90
+                bots.append(Bot)
+            for i, bot in enumerate(self.Bots.enemy_bots):
+                Bot = BotTankClass(self, bot["machine"], "enemy", bot["intelect"], bot["name"])
+                Bot.goto(self.maxsize[0] / 2.5 - 50, y + 50 * i)
+                Bot.machine_class.angle = 270
+                Bot.machine_class.angle_tower = 270
+                bots.append(Bot)
             self.Screen.onkeypress(self.Scenes.leave_game_window, "Escape")
             self.run_game = True
+            end = time.time()
             while self.run_game:
+                for bot in bots:
+                    bot.move()
                 self.player.move()
                 self.move_bullet()
                 self.draw_bullet()
-                #self.check_colision()
+                self.check_colision()
+                self.Ui.Labels.change_value("health", "text", f"Здоровье: {self.player.health}")
+                self.Ui.Labels.change_value("recharge", "text", f"Перезарядка {round(self.player.recharge, 1)}" if self.player.recharge != 0 or self.player.recharge < 0  else f"Боеприпасы: {int(self.player.capacity)}")
                 time.sleep(1 / self.fps)
                 self.update()
+                end = time.time()
         else:
             self.Scenes.map_not_selected() 
 
@@ -127,7 +149,7 @@ class App:
 
     def check_colision(self):
         for i, bullet in enumerate(self.bullets):
-            if bullet["x"] > self.maxsize[0] / 2 or bullet["x"] < -self.maxsize[0] / 2 or bullet["y"] > -self.maxsize[1] / 2 or bullet["y"] > self.maxsize[1] / 2:
+            if bullet["x"] > self.maxsize[0] / 2 or bullet["x"] < -self.maxsize[0] / 2 or bullet["y"] < -self.maxsize[1] / 2 or bullet["y"] > self.maxsize[1] / 2:
                 self.bullets.pop(i)
 
     def click(self, x, y, filter = False):
@@ -257,6 +279,7 @@ class PlayerPlane:
         self.recharge = 0
         self.angle = 270  
         self.y = 0
+        self.start = 0
         self.forward = False
         self.back = False
         self.x = 0
@@ -296,27 +319,34 @@ class PlayerPlane:
         self.base_img.penup()
         self.base_img.speed(0)
         self.speed = 300
-        self.link_keys()
 
     def shoot(self, useless, useless2):
-        if self.recharge < 0:
-            self.recharge = 0
         if self.recharge != 0:
             return
         used_bullet = 0
         angle_rad = math.radians(-self.angle) #% 360)
-        x_speed = self.weapon["speed"] * math.sin(angle_rad) / 250
-        y_speed = self.weapon["speed"] * math.cos(angle_rad) / 250
+        x_speed = self.weapon["speed"] * math.sin(angle_rad) / 170
+        y_speed = self.weapon["speed"] * math.cos(angle_rad) / 170
         if int(self.weapon["shell_for_second"]) > 1:
-            dist = 50 / int(self.weapon["shell_for_second"])
-            for i in range(int(self.weapon["shell_for_second"])):
-                x = self.x + dist * math.sin(angle_rad) * i
-                y = self.y + dist * math.cos(angle_rad) * i
-                self.App.new_bullet("allien", self.weapon["armor_projectile"], y_speed, x_speed, y, x, self.weapon["mass"], self.angle)
-            used_bullet = int(self.weapon["shell_for_second"])
+            if self.capacity < int(self.weapon["shell_for_second"]):
+                shell = int(self.capacity)
+                dist = 50 / shell
+                for i in range(shell):
+                    x = self.x + dist * math.sin(angle_rad) * i
+                    y = self.y + dist * math.cos(angle_rad) * i
+                    self.App.new_bullet("allien", self.weapon["armor_projectile"], y_speed, x_speed, y, x, self.weapon["mass"], self.angle)
+                used_bullet = shell
+            else:
+                dist = 50 / int(self.weapon["shell_for_second"])
+                for i in range(int(self.weapon["shell_for_second"])):
+                    x = self.x + dist * math.sin(angle_rad) * i
+                    y = self.y + dist * math.cos(angle_rad) * i
+                    self.App.new_bullet("allien", self.weapon["armor_projectile"], y_speed, x_speed, y, x, self.weapon["mass"], self.angle)
+                used_bullet = int(self.weapon["shell_for_second"])
         else:
             self.App.new_bullet("allien", self.weapon["armor_projectile"], y_speed, x_speed, self.y, self.x, self.weapon["mass"], self.angle)
             used_bullet = 1
+            self.recharge = self.weapon["recharge"]
         self.capacity -= used_bullet
         if self.capacity <= 0:
             self.capacity = self.weapon["capacity"]
@@ -372,16 +402,20 @@ class PlayerPlane:
         self.back = False
 
     def right(self):
-        self.angle_speed = self.rotate_for_second / self.App.fps
+        self.angle_speed = self.rotate_for_second * 2 / self.App.fps
 
     def left(self):
-        self.angle_speed = -self.rotate_for_second / self.App.fps
+        self.angle_speed = -self.rotate_for_second * 2 / self.App.fps
 
     def stop_rotate(self):
         self.angle_speed = 0
 
     def move(self):
-        self.recharge -= 1 / self.App.slow if self.recharge > 0 else 0
+        global end
+        if self.recharge < 0:
+            self.recharge = 0
+        self.recharge -= end - self.start if self.recharge != 0 else 0 
+        self.start = time.time()
         self.speed += self.boost / self.App.slow
         self.angle += self.angle_speed
         if self.forward:
@@ -395,9 +429,9 @@ class PlayerPlane:
         if not self.name + "_" + str(round(self.angle)) + ".png" in self.App.shapes:
             self.App.rotate_texture(self.image_path, round(self.angle), self.name)
             self.App.shapes.append(self.name + "_" + str(round(self.angle)) + ".png")
-        self.base_img.shape(self.name + "_" + str(round(self.angle)) + ".png")
+        self.base_img.shape(self.name + "_" + str(round(self.angle)) + ".png") 
 
-    """def unlink_keys(self):
+    def unlink_keys(self):
         self.App.Screen.onkeypress(None, "w")
         self.App.Screen.onkeyrelease(None, "w")
         self.App.Screen.onkeypress(None, "s")
@@ -405,7 +439,8 @@ class PlayerPlane:
         self.App.Screen.onkeypress(None, "d")
         self.App.Screen.onkeyrelease(None, "d")
         self.App.Screen.onkeypress(None, "a")
-        self.App.Screen.onkeyrelease(None, "a")"""
+        self.App.Screen.onkeyrelease(None, "a")
+        self.App.Screen.onscreenclick(None, 1)
 
 class PlayerTank:
 
@@ -415,6 +450,7 @@ class PlayerTank:
         self.health = self.data.hp
         self.recharge = 0
         self.angle = 0
+        self.start = 0
         self.y = 0
         self.forward = False
         self.back = False
@@ -452,11 +488,8 @@ class PlayerTank:
         self.tower_rotate_speed = self.data.tower_rotate_speed
         self.x_tower_ofs = self.data.tower_x_offset
         self.y_tower_ofs = self.data.tower_y_offset
-        self.link_keys()
 
     def shoot(self, useless, useless2):
-        if self.recharge < 0:
-            self.recharge = 0
         if self.recharge != 0:
             return
         used_bullet = 0
@@ -464,17 +497,27 @@ class PlayerTank:
         world_ofs_x = self.x_tower_ofs * math.cos(rad) - self.y_tower_ofs * math.sin(rad)
         world_ofs_y = self.x_tower_ofs * math.sin(rad) + self.y_tower_ofs * math.cos(rad)
         angle_rad = math.radians(self.angle_tower) #% 360)
-        x_speed = self.weapon["speed"] * math.sin(angle_rad) / 250
-        y_speed = self.weapon["speed"] * math.cos(angle_rad) / 250
+        x_speed = self.weapon["speed"] * math.sin(angle_rad) / 170
+        y_speed = self.weapon["speed"] * math.cos(angle_rad) / 170
         if int(self.weapon["shell_for_second"]) > 1:
-            dist = 50 / int(self.weapon["shell_for_second"])
-            for i in range(int(self.weapon["shell_for_second"])):
-                x = self.x + world_ofs_x + dist * math.sin(angle_rad) * i
-                y = self.y + world_ofs_y + dist * math.cos(angle_rad) * i
-                self.App.new_bullet("allien", self.weapon["armor_projectile"], y_speed, x_speed, y, x, self.weapon["mass"], self.angle_tower)
+            if self.capacity < int(self.weapon["shell_for_second"]):
+                shell = int(self.capacity)
+                dist = 50 / shell
+                for i in range(shell):
+                    x = self.x + dist * math.sin(angle_rad) * i
+                    y = self.y + dist * math.cos(angle_rad) * i
+                    self.App.new_bullet("allien", self.weapon["armor_projectile"], y_speed, x_speed, y, x, self.weapon["mass"], self.angle)
+                used_bullet = shell
+            else:
+                dist = 50 / int(self.weapon["shell_for_second"])
+                for i in range(int(self.weapon["shell_for_second"])):
+                    x = self.x + world_ofs_x + dist * math.sin(angle_rad) * i
+                    y = self.y + world_ofs_y + dist * math.cos(angle_rad) * i
+                    self.App.new_bullet("allien", self.weapon["armor_projectile"], y_speed, x_speed, y, x, self.weapon["mass"], self.angle_tower)
         else:
             self.App.new_bullet("allien", self.weapon["armor_projectile"], y_speed, x_speed, self.y + world_ofs_y, self.x + world_ofs_x, self.weapon["mass"], self.angle_tower)
             used_bullet = 1
+            self.recharge = self.weapon["recharge"]
         self.capacity -= used_bullet
         if self.capacity <= 0:
             self.capacity = self.weapon["capacity"]
@@ -482,7 +525,7 @@ class PlayerTank:
 
     def goto(self, x, y):
         self.img_tower.goto(x + self.x_tower_ofs, y + self.y_tower_ofs)
-        self.base.goto(x, y)
+        self.base_img.goto(x, y)
         self.x = x
         self.y = y
 
@@ -541,12 +584,12 @@ class PlayerTank:
 
         if abs(diff) <= self.tower_rotate_speed:
             self.angle_tower = target
-            return
+            return True
 
         if diff > 0:
-            self.angle_tower = self.angle_tower + self.tower_rotate_speed
+            self.angle_tower = self.angle_tower + self.tower_rotate_speed / 2
         else:
-            self.angle_tower = self.angle_tower - self.tower_rotate_speed
+            self.angle_tower = self.angle_tower - self.tower_rotate_speed / 2
    
     def do_slow_down(self):
         if self.speed <= self.max_back_speed:
@@ -572,7 +615,11 @@ class PlayerTank:
         self.angle_speed = 0
 
     def move(self):
-        self.recharge -= 1 / self.App.slow if self.recharge > 0 else 0
+        global end
+        if self.recharge < 0:
+            self.recharge = 0
+        self.recharge -= end - self.start if self.recharge != 0 else 0
+        self.start = time.time()
         self.speed += self.boost / self.App.slow
         self.angle += self.angle_speed
         if self.forward:
@@ -596,7 +643,7 @@ class PlayerTank:
             self.App.shapes.append(self.name + "_tower_" + str(round(-self.angle_tower)) + ".png")
         self.img_tower.shape(self.name + "_tower_" + str(round(-self.angle_tower)) + ".png")
 
-    """def unlink_keys(self):
+    def unlink_keys(self):
         self.App.Screen.onkeypress(None, "w")
         self.App.Screen.onkeyrelease(None, "w")
         self.App.Screen.onkeypress(None, "s")
@@ -604,7 +651,106 @@ class PlayerTank:
         self.App.Screen.onkeypress(None, "d")
         self.App.Screen.onkeyrelease(None, "d")
         self.App.Screen.onkeypress(None, "a")
-        self.App.Screen.onkeyrelease(None, "a")"""
+        self.App.Screen.onkeyrelease(None, "a")
+        canvas = self.App.Screen.getcanvas()
+        canvas.bind("<Motion>", None)
+
+class BotTankClass:
+    targer = {"name": None,
+              "x": 0,
+              "y": 0}
+    free_to_action = True
+    main_action = None
+    action = None
+    step = -1
+    repeat = 0
+
+    def __init__(self, App, machine_name, team, intelect, name):
+        self.machine_class = PlayerTank(App, machine_name)
+        self.intelect = intelect
+
+    def go_to_enemy():
+        pass
+
+    def rotate_to_targer():
+        pass
+
+    def rotate_tower_to_enemy():
+        pass
+
+    def get_targer():
+        targer_bot = random(bots)
+        targer = {
+            "name": targer_bot["name"],
+            "x": targer_bot.machine_class.x,
+            "y": targer_bot.machine_class.y
+        }
+
+    def get_and_rotate():
+        pass
+
+    def shoot(self):
+        self.machine_class.shoot(0, 0)
+
+    def slow_down():
+        pass
+
+    def goto(self, x, y):
+        self.machine_class.goto(x, y)
+
+    def rotate_right(self):
+        self.machine_class.right
+        self.repeat = 200
+
+    def rotate_left(self):
+        self.machine_class.left
+        self.repeat = 200
+
+    def stop_rotate(self):
+        self.machine_class.stop_rotate
+        self.repeat = 200
+
+    def check_is_rotate(self):
+        if self.machine_class.move_tower(self.machine_class.angle_tower):
+            self.repeat = -1
+        else:
+            self.get_and_rotate(self.targer["x"], self.targer["y"])
+            self.repeat = 1000
+
+    def shoot_to_enemy(self):
+        self.main_action = self.shoot_to_enemy
+        if self.step == -1:
+            self.step = 0
+            return
+        if self.step == 1:
+            self.action = self.check_is_rotate
+            self.repeat = 1000
+        if self.step == 2:
+            self.shoot()
+            self.step = -1
+
+
+    stupid = [[go_to_enemy, False], [shoot, False], [rotate_right, False], [rotate_left, False]]
+    normal = [[go_to_enemy, False], [stop_rotate, False]]
+    great = [[shoot_to_enemy, False]]
+
+    def move(self):
+        if self.repeat >= 0:
+            self.repeat -= 1
+        elif self.step == -1:
+            if self.intelect == 0:
+                self.action = random.choice(self.stupid)
+                self.action[0]()
+            elif self.intelect == 1:
+                self.action = random.choice(self.normal)
+                self.action[0]()
+            else:
+                self.action = random.choice(self.great)
+                self.action[0](self)
+        else:
+            self.step += 1
+            self.main_action()
+        self.machine_class.move()
 
 class Bots:
     def __init__(self, App):
@@ -967,6 +1113,7 @@ class Scenes:
         self.name = ""
 
     def leave_game_window(self):
+        self.App.Ui.hide_group("game")
         self.App.Screen.onkeypress(self.not_leave_game, "Escape")
         self.App.Screen.onscreenclick(self.App.click, 1)
         self.img_visible_value = [self.image.isvisible(), self.bot_machine_img.isvisible()]
@@ -980,19 +1127,26 @@ class Scenes:
         self.App.update()
 
     def not_leave_game(self):
+        self.App.Ui.show_group("game")
         self.App.Ui.delete_group("leave_game")
         self.App.Screen.onkeypress(self.leave_game_window, "Escape")
         self.App.Screen.onscreenclick(self.App.player.shoot, 1)
         self.App.update()
 
     def leave_game(self):
+        self.App.bullet_drawer.clear()
         self.App.run_game = False
+        self.App.Ui.delete_group("game")
         self.App.Ui.delete_group("leave_game")
         self.App.Screen.onkeypress(self.exit_window, "Escape")
         self.App.Screen.onscreenclick(self.App.click, 1)
         self.App.player.base_img.hideturtle()
         self.App.player.img_tower.hideturtle() if self.App.player.data.cls == "Tank" else None
+        self.App.player.unlink_keys()
         self.App.player = None
+        for bot in bots:
+            bot.machine_class.base_img.hideturtle()
+            bot.machine_class.img_tower.hideturtle() if bot.machine_class.data.cls == "Tank" else None
         self.play_menu()  
         self.App.update()
 
@@ -1490,6 +1644,8 @@ class Desert():
     obstacle = {}
 
 version = "0.1 alpha"
+end = 0
+bots = []
 
 def run():
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
