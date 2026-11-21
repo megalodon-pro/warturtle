@@ -68,42 +68,44 @@ class App:
         os.remove(tmp_path)
 
     def begin_game(self):
-        global end, bots
+        global end, bots, enemy, allied, player
         if self.selected_map != "":
             self.Maps.load_map()
             self.Ui.Labels.new("health", (-self.maxsize[0] / 2.5, self.maxsize[1] / 2.5), "center", "Здоровье: ", "black", ("Arial", 20, "bold"), group="game")
             self.Ui.Labels.new("recharge", (-self.maxsize[0] / 2.5, self.maxsize[1] / 2.5 - 25), "center", "Боеприпасы: ", "black", ("Arial", 20, "bold"), group="game")
             cls = self.Machines.get(self.selected_machine).cls
             if cls == "Plane":
-                self.player = PlayerPlane(self, self.selected_machine)
+                player = PlayerPlane(self, self.selected_machine)
             else:
-                self.player = PlayerTank(self, self.selected_machine)
-            self.player.link_keys()
+                player = PlayerTank(self, self.selected_machine)
+            player.link_keys()
             y = self.maxsize[1] / 2.5 - 50
             for i, bot in enumerate(self.Bots.allied_bots):
                 Bot = BotTankClass(self, bot["machine"], "allien", bot["intelect"], bot["name"])
-                Bot.goto(-self.maxsize[0] / 2.5 + 50, y + 50 * i)
+                Bot.goto(-self.maxsize[0] / 2.5 + 60, y - 60 * i)
                 Bot.machine_class.angle = 90
                 Bot.machine_class.angle_tower = 90
                 bots.append(Bot)
+                allied.append(Bot)
             for i, bot in enumerate(self.Bots.enemy_bots):
                 Bot = BotTankClass(self, bot["machine"], "enemy", bot["intelect"], bot["name"])
-                Bot.goto(self.maxsize[0] / 2.5 - 50, y + 50 * i)
+                Bot.goto(self.maxsize[0] / 2.5 - 60, y - 60 * i)
                 Bot.machine_class.angle = 270
                 Bot.machine_class.angle_tower = 270
                 bots.append(Bot)
+                enemy.append(Bot)
             self.Screen.onkeypress(self.Scenes.leave_game_window, "Escape")
             self.run_game = True
             end = time.time()
             while self.run_game:
                 for bot in bots:
                     bot.move()
-                self.player.move()
+                player.move()
                 self.move_bullet()
                 self.draw_bullet()
                 self.check_colision()
-                self.Ui.Labels.change_value("health", "text", f"Здоровье: {self.player.health}")
-                self.Ui.Labels.change_value("recharge", "text", f"Перезарядка {round(self.player.recharge, 1)}" if self.player.recharge != 0 or self.player.recharge < 0  else f"Боеприпасы: {int(self.player.capacity)}")
+                self.Ui.Labels.change_value("health", "text", f"Здоровье: {player.health}")
+                self.Ui.Labels.change_value("recharge", "text", f"Перезарядка {round(player.recharge, 1)}" if player.recharge != 0 or player.recharge < 0  else f"Боеприпасы: {int(player.capacity)}")
                 time.sleep(1 / self.fps)
                 self.update()
                 end = time.time()
@@ -137,7 +139,7 @@ class App:
         for bullet in self.bullets:
             self.bullet_drawer.goto(bullet["x"], bullet["y"])
             self.bullet_drawer.pendown()
-            self.bullet_drawer.setheading(bullet["angle"])
+            self.bullet_drawer.setheading(bullet["angle"] - 90)
             self.bullet_drawer.pensize(bullet["size"][1])
             self.bullet_drawer.forward(bullet["size"][0])
             self.bullet_drawer.penup()
@@ -282,7 +284,7 @@ class PlayerPlane:
         self.start = 0
         self.forward = False
         self.back = False
-        self.x = 0
+        self.x = -self.App.maxsize[0] / 2.5 + 50
         self.angle_speed = 0
         self.boost = 0 
         self.speed = 0
@@ -440,7 +442,6 @@ class PlayerPlane:
         self.App.Screen.onkeyrelease(None, "d")
         self.App.Screen.onkeypress(None, "a")
         self.App.Screen.onkeyrelease(None, "a")
-        self.App.Screen.onscreenclick(None, 1)
 
 class PlayerTank:
 
@@ -454,7 +455,7 @@ class PlayerTank:
         self.y = 0
         self.forward = False
         self.back = False
-        self.x = 0
+        self.x = -self.App.maxsize[0] / 2.5 + 30
         self.angle_speed = 0
         self.boost = 0 
         self.speed = 0
@@ -485,7 +486,7 @@ class PlayerTank:
         self.img_tower = turtle.Turtle()
         self.img_tower.penup()
         self.img_tower.speed(0)
-        self.tower_rotate_speed = self.data.tower_rotate_speed
+        self.tower_rotate_speed = self.data.tower_rotate_speed / 1.5
         self.x_tower_ofs = self.data.tower_x_offset
         self.y_tower_ofs = self.data.tower_y_offset
 
@@ -506,7 +507,7 @@ class PlayerTank:
                 for i in range(shell):
                     x = self.x + dist * math.sin(angle_rad) * i
                     y = self.y + dist * math.cos(angle_rad) * i
-                    self.App.new_bullet("allien", self.weapon["armor_projectile"], y_speed, x_speed, y, x, self.weapon["mass"], self.angle)
+                    self.App.new_bullet("allien", self.weapon["armor_projectile"], y_speed, x_speed, y, x, self.weapon["mass"], self.angle_tower)
                 used_bullet = shell
             else:
                 dist = 50 / int(self.weapon["shell_for_second"])
@@ -568,8 +569,8 @@ class PlayerTank:
         world_ofs_y = self.x_tower_ofs * math.sin(rad) + self.y_tower_ofs * math.cos(rad)
         tower_world_x = self.x + world_ofs_x
         tower_world_y = self.y + world_ofs_y
-        dx = event.x - (tower_world_x + self.App.maxsize[0] / 2)
-        dy = (self.App.maxsize[1] / 2 - event.y) - tower_world_y
+        dx = event.x - tower_world_x - self.App.maxsize[0] / 2
+        dy = self.App.maxsize[1] / 2 - event.y - tower_world_y
         self.move_tower(math.degrees(math.atan2(dx, dy)))
 
     def normalize_angle(self, angle):
@@ -655,67 +656,79 @@ class PlayerTank:
         canvas = self.App.Screen.getcanvas()
         canvas.bind("<Motion>", None)
 
-class BotTankClass:
-    targer = {"name": None,
-              "x": 0,
-              "y": 0}
-    free_to_action = True
-    main_action = None
-    action = None
-    step = -1
-    repeat = 0
+class event:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
 
+class BotTankClass:
     def __init__(self, App, machine_name, team, intelect, name):
+        self.App = App
         self.machine_class = PlayerTank(App, machine_name)
         self.intelect = intelect
+        self.targer = None
+        self.free_to_action = True
+        self.main_action = None
+        self.action = self.nothing 
+        self.step = -1
+        self.repeat = 50
+        self.can_shoot = False
+        self.team = team
+        if self.intelect == 2:
+            self.machine_class.weapon["recharge"] *= 0.75
+            self.machine_class.speed_for_second *= 1.5
+        elif self.intelect == 1:
+            self.machine_class.weapon["recharge"] *= 0.9
 
-    def go_to_enemy():
+    def go_to_enemy():  
         pass
 
     def rotate_to_targer():
         pass
 
-    def rotate_tower_to_enemy():
-        pass
+    def nothing(self, nothing = "nothing"):
+        pass #неожиданно
 
-    def get_targer():
-        targer_bot = random(bots)
-        targer = {
-            "name": targer_bot["name"],
-            "x": targer_bot.machine_class.x,
-            "y": targer_bot.machine_class.y
-        }
+    def get_targer(self, two_self = None):
+        if not self.targer == None:
+            return
+        if self.team == "enemy":
+            self.targer = random.choice(allied + [player])
+        else:
+            self.targer = random.choice(enemy)
 
-    def get_and_rotate():
+    def help_to_allies(self):
         pass
 
     def shoot(self):
         self.machine_class.shoot(0, 0)
 
-    def slow_down():
-        pass
+    def forward(self):
+        self.machine_class.do_up_speed()
+
+    def backward(self):
+        self.machine_class.do_slow_down()
+
+    def stop(self):
+        self.machine_class.stop()
 
     def goto(self, x, y):
         self.machine_class.goto(x, y)
 
     def rotate_right(self):
-        self.machine_class.right
-        self.repeat = 200
+        self.machine_class.right()
 
     def rotate_left(self):
-        self.machine_class.left
-        self.repeat = 200
+        self.machine_class.left()
 
     def stop_rotate(self):
-        self.machine_class.stop_rotate
-        self.repeat = 200
+        self.machine_class.stop_rotate()
 
-    def check_is_rotate(self):
-        if self.machine_class.move_tower(self.machine_class.angle_tower):
-            self.repeat = -1
-        else:
-            self.get_and_rotate(self.targer["x"], self.targer["y"])
-            self.repeat = 1000
+    def check_is_rotate(self, two_self = None):
+        if hasattr(self.targer, 'machine_class'):
+                self.machine_class.get_and_rotate(event(self.targer.machine_class.x + (self.App.maxsize[0] / 2), (self.App.maxsize[1] / 2) - self.targer.machine_class.y))
+                return
+        self.machine_class.get_and_rotate(event(self.targer.x + (self.App.maxsize[0] / 2), (self.App.maxsize[1] / 2) - self.targer.y))
 
     def shoot_to_enemy(self):
         self.main_action = self.shoot_to_enemy
@@ -723,30 +736,45 @@ class BotTankClass:
             self.step = 0
             return
         if self.step == 1:
-            self.action = self.check_is_rotate
-            self.repeat = 1000
+            self.action = self.get_targer
+            self.repeat = 0   
         if self.step == 2:
+            self.action = self.check_is_rotate
+            self.repeat = 200
+        if self.step == 3:
             self.shoot()
             self.step = -1
 
-
-    stupid = [[go_to_enemy, False], [shoot, False], [rotate_right, False], [rotate_left, False]]
-    normal = [[go_to_enemy, False], [stop_rotate, False]]
-    great = [[shoot_to_enemy, False]]
+    stupid = [[shoot_to_enemy, 0], [go_to_enemy, 0], [shoot, 0], [rotate_right, 150], [stop_rotate, 5], [rotate_left, 150], [nothing, 200]]
+    normal = [[shoot_to_enemy, 0], [go_to_enemy, 0], [backward, 100], [forward, 150]]
+    great = [[help_to_allies, 0]]
 
     def move(self):
+        if (not self.action == self.nothing) and self.step == -1 and ((self.intelect == 2 and self.machine_class.recharge == 0) or (self.intelect == 1 and random.choice(1, 2, 3) == 1)):
+            self.can_shoot = True
+        else:
+            self.can_shoot = False
         if self.repeat >= 0:
             self.repeat -= 1
+            self.action(self)
         elif self.step == -1:
-            if self.intelect == 0:
-                self.action = random.choice(self.stupid)
-                self.action[0]()
+            if self.can_shoot:
+                self.shoot_to_enemy()
+            elif self.intelect == 0:
+                action_w_repeat = random.choice(self.stupid)
+                self.action = action_w_repeat[0]
+                self.repeat = action_w_repeat[1]
+                self.action(self)
             elif self.intelect == 1:
-                self.action = random.choice(self.normal)
-                self.action[0]()
+                action_w_repeat = random.choice(self.normal)
+                self.action = action_w_repeat[0]
+                self.repeat = action_w_repeat[1]
+                self.action(self)
             else:
-                self.action = random.choice(self.great)
-                self.action[0](self)
+                action_w_repeat = random.choice(self.great)
+                self.action = action_w_repeat[0]
+                self.repeat = action_w_repeat[1]
+                self.action(self)
         else:
             self.step += 1
             self.main_action()
@@ -1127,26 +1155,31 @@ class Scenes:
         self.App.update()
 
     def not_leave_game(self):
+        global player
         self.App.Ui.show_group("game")
         self.App.Ui.delete_group("leave_game")
         self.App.Screen.onkeypress(self.leave_game_window, "Escape")
-        self.App.Screen.onscreenclick(self.App.player.shoot, 1)
+        self.App.Screen.onscreenclick(player.shoot, 1)
         self.App.update()
 
     def leave_game(self):
+        global bots, enemy, allied, player
         self.App.bullet_drawer.clear()
         self.App.run_game = False
         self.App.Ui.delete_group("game")
         self.App.Ui.delete_group("leave_game")
         self.App.Screen.onkeypress(self.exit_window, "Escape")
         self.App.Screen.onscreenclick(self.App.click, 1)
-        self.App.player.base_img.hideturtle()
-        self.App.player.img_tower.hideturtle() if self.App.player.data.cls == "Tank" else None
-        self.App.player.unlink_keys()
-        self.App.player = None
+        player.base_img.hideturtle()
+        player.img_tower.hideturtle() if player.data.cls == "Tank" else None
+        player.unlink_keys()
+        player = None
         for bot in bots:
             bot.machine_class.base_img.hideturtle()
             bot.machine_class.img_tower.hideturtle() if bot.machine_class.data.cls == "Tank" else None
+        bots = []
+        enemy = []
+        allied = []
         self.play_menu()  
         self.App.update()
 
@@ -1288,7 +1321,7 @@ class Scenes:
         self.App.Ui.Labels.new("selected_map", ((self.half_x * 2 - 10 * 2 - self.x / 6) / 2, self.half_y - 10 * 14 - self.y / 8), "center", "выбранная карта: -", "white", ("Arial", 12, "bold"), "gamemode")
         self.App.Ui.Labels.new("modee", ((self.half_x * 2 - 10 * 2 - self.x / 6) / 2, self.half_y - 10 * 9 - self.y / 8), "center", "", "white", ("Arial", 13, "normal"), "gamemode")
         self.App.Ui.Buttons.new("select_map", "rectangle", [self.x / 6 - 10 * 6, 30], ((self.half_x * 2 - 10 * 2 - self.x / 6) / 2, self.half_y - 10 * 17 - self.y / 8), self.select_map_window, "black", 3, "black", "выбрать карту", ("Arial", 13, "bold"), "red", group = "gamemode")
-        self.App.Ui.Labels.new("bots_num", ((self.half_x * 2 - 10 * 2 - self.x / 6) / 2, self.half_y - 10 * 22 - self.y / 8), "center", "боты: 0" if len(self.App.Bots.allied_bots) == 0 and len(self.App.Bots.enemy_bots) == 0 else f"боты: {len(self.App.Bots.allied_bots) + len(self.App.Bots.enemy_bots) == 0}" , "white", ("Arial", 12, "bold"), "gamemode")
+        self.App.Ui.Labels.new("bots_num", ((self.half_x * 2 - 10 * 2 - self.x / 6) / 2, self.half_y - 10 * 22 - self.y / 8), "center", "боты: 0" if len(self.App.Bots.allied_bots) + len(self.App.Bots.enemy_bots) == 0 else f"боты: {len(self.App.Bots.allied_bots) + len(self.App.Bots.enemy_bots) == 0}" , "white", ("Arial", 12, "bold"), "gamemode")
         self.App.Ui.Buttons.new("bot_men", "rectangle", [self.x / 6 - 10 * 6, 40], ((self.half_x * 2 - 10 * 2 - self.x / 6) / 2, self.half_y - 10 * 25 - self.y / 8), self.bot_menu, "black", 3, "black", "настройки ботов", ("Arial", 13, "bold"), "red", group = "gamemode")
         self.App.Ui.Frames.new("machine_buttons", (42, 42, 42), [(-self.half_x + 10 + self.x / 4, -self.half_y + self.y / 4), (self.half_x - 10 - self.x / 4, -self.half_y + self.y / 4), 
                                 (self.half_x - 10 - self.x / 4, -self.half_y + self.y / 10), (-self.half_x + 10 + self.x / 4, -self.half_y + self.y / 10)])
@@ -1328,10 +1361,10 @@ class Scenes:
                 self.App.Ui.Buttons.new(f"allied_bot{i}", "rectangle", [size, size], (x, y), self.want_to_remove, "black", 2, "red", self.App.Machines.get(bot["machine"]).name, ("Arial", 13, "normal"), "red", action_arg = [i, "allied"], group = "allied_bots")
                 color = None
                 text = ""
-                if bot["intelect"] == 1:
+                if bot["intelect"] == 0:
                     color = (0, 200, 0)
                     text = "слабый"
-                elif bot["intelect"] == 2:
+                elif bot["intelect"] == 1:
                     color = (237, 118, 10)
                     text = "нормальный"
                 else:
@@ -1361,10 +1394,10 @@ class Scenes:
                 self.App.Ui.Buttons.new(f"enemy_bot{i}", "rectangle", [size, size], (x, y), self.want_to_remove, "black", 2, "red", self.App.Machines.get(bot["machine"]).name, ("Arial", 13, "normal"), "red", action_arg = [i, "enemy"], group = "enemy_bots")
                 color = None
                 text = ""
-                if bot["intelect"] == 1:
+                if bot["intelect"] == 0:
                     color = (0, 200, 0)
                     text = "слабый"
-                elif bot["intelect"] == 2:
+                elif bot["intelect"] == 1:
                     color = (237, 118, 14)
                     text = "нормальный"
                 else:
@@ -1413,9 +1446,9 @@ class Scenes:
                                                             (-self.half_x + 150 + half_size, -half_size), (-self.half_x + 150 - half_size, -half_size)], False, group="creation_menu")
         self.App.Ui.Labels.new("infoo", [-self.half_x + 150 , -half_size], "center", "", (250, 250, 250), ("Arial", 8, "normal"), "creation_menu")
         self.App.Ui.Labels.new("intelect_label", [0 , -half_size - 50], "center", "Интелект бота", (218, 40, 18), ("Arial", 22, "bold"), "creation_menu")
-        self.App.Ui.Buttons.new("low_intelect", "rectangle", [half_size * 2, size_two], (-self.half_x + 150, -half_size - 100), self.choose_bot_intelect, "black", 3, "red", "низкий", ("Arial", 15, "bold"), "green", action_arg = [1], group = "creation_menu")
-        self.App.Ui.Buttons.new("normal_intelect", "rectangle", [half_size * 2, size_two], (0, -half_size - 100), self.choose_bot_intelect, "black", 3, "red", "средний", ("Arial", 15, "bold"), "yellow", action_arg = [2], group = "creation_menu")
-        self.App.Ui.Buttons.new("high_intelect", "rectangle", [half_size * 2, size_two], (self.half_x - 150, -half_size - 100), self.choose_bot_intelect, "black", 3, "red", "высокий", ("Arial", 15, "bold"), "red", action_arg = [3], group = "creation_menu")   
+        self.App.Ui.Buttons.new("low_intelect", "rectangle", [half_size * 2, size_two], (-self.half_x + 150, -half_size - 100), self.choose_bot_intelect, "black", 3, "red", "низкий", ("Arial", 15, "bold"), "green", action_arg = [0], group = "creation_menu")
+        self.App.Ui.Buttons.new("normal_intelect", "rectangle", [half_size * 2, size_two], (0, -half_size - 100), self.choose_bot_intelect, "black", 3, "red", "средний", ("Arial", 15, "bold"), "yellow", action_arg = [1], group = "creation_menu")
+        self.App.Ui.Buttons.new("high_intelect", "rectangle", [half_size * 2, size_two], (self.half_x - 150, -half_size - 100), self.choose_bot_intelect, "black", 3, "red", "высокий", ("Arial", 15, "bold"), "red", action_arg = [2], group = "creation_menu")   
         self.App.Ui.Buttons.new("save_and_addd", "rectangle", [half_size * 2, size_two], (0, -half_size - 200), self.save_and_add, "black", 3, "red", "сохранить", ("Arial", 15, "bold"), "white", group = "creation_menu")
 
         self.App.update()
@@ -1645,7 +1678,10 @@ class Desert():
 
 version = "0.1 alpha"
 end = 0
-bots = []
+bots = []              #Глобальные переменные(используются в нескольких классах которые не имеют связь)
+allied = []
+player = None
+enemy = [] 
 
 def run():
     os.chdir(os.path.dirname(os.path.abspath(__file__)))
